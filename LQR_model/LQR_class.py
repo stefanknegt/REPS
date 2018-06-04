@@ -26,7 +26,7 @@ class LQR:
         return self.state
 
 
-if __name__ == "__main__":
+def main():
     #Initialize an environment
     env = LQR(-10, 10) #you can select the range of states
 
@@ -44,3 +44,7 @@ if __name__ == "__main__":
         batch_data.append(data)
 
     print(batch_data)
+    return batch_data
+
+if __name__ == "__main__":
+    main()
