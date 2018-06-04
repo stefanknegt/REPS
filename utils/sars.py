@@ -28,8 +28,11 @@ class SARSDataset(Dataset):
 
 
 def main():
-    import LQR_class
-    batch_data = LQR_class.main()
+    import sys, os, argparse
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+
+    import environments.lqr
+    batch_data = environments.lqr.main()
 
     sars_dataset = SARSDataset(batch_data)
 
