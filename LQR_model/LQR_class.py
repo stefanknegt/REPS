@@ -25,20 +25,22 @@ class LQR:
         self.state = random.uniform(min, max)
         return self.state
 
-#Initialize a environment
-env = LQR(-10, 10) #you can select the range of states
 
-#Get a batch of data for random samples
-batch_size = 10
-batch_data = []
-for s in range(batch_size):
-    #We save all data in dicts
-    data = {}
-    data['prev_state'] = env.state
-    data['action'] = random.uniform(-1,1)
-    data['new_state'], data['reward'] = env.step(data['action']) 
+if __name__ == "__main__":
+    #Initialize an environment
+    env = LQR(-10, 10) #you can select the range of states
 
-    #Put the dict in a list:
-    batch_data.append(data)
+    #Get a batch of data for random samples
+    batch_size = 10
+    batch_data = []
+    for s in range(batch_size):
+        #We save all data in dicts
+        data = {}
+        data['prev_state'] = env.state
+        data['action'] = random.uniform(-1,1)
+        data['new_state'], data['reward'] = env.step(data['action']) 
 
-print(batch_data)
+        #Put the dict in a list:
+        batch_data.append(data)
+
+    print(batch_data)
