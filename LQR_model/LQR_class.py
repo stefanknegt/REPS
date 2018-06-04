@@ -26,7 +26,7 @@ class LQR:
         return self.state
 
 #Initialize a environment
-env = LQR(-10, 10)
+env = LQR(-10, 10) #you can select the range of states
 
 #Get a batch of data for random samples
 batch_size = 10
