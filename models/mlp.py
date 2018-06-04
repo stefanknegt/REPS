@@ -11,8 +11,10 @@ class MLP(torch.nn.Module):
         super(MLP, self).__init__()
         self.layers = []
         self.activation = activation
-        for i in range(len(layers)-1):
-            self.layers.append(torch.nn.Linear(layers[i], layers[i+1]))
+        # for i in range(len(layers)-1):
+        #     self.layers.append(torch.nn.Linear(layers[i], layers[i+1]))
+        self.fc1 = torch.nn.Linear(1, 16)
+        self.fc2 = torch.nn.Linear(16, 1)
 
     def forward(self, x):
         """
@@ -20,11 +22,13 @@ class MLP(torch.nn.Module):
         :return: output of the network
         """
 
-        "Forward pass (layer + activation)"
-        for i in range(len(self.layers) - 1):
-            x = self.activation(self.layers[i](x))
-        "Last layer without activation (no output domain restriction)"
-        x = self.layers[len(self.layers) - 1](x)
+        # "Forward pass (layer + activation)"
+        # for i in range(len(self.layers) - 1):
+        #     x = self.activation(self.layers[i](x))
+        # "Last layer without activation (no output domain restriction)"
+        # x = self.layers[-1](x)
+        x = self.activation(self.fc1(x))
+        x = self.activation(self.fc2(x))
         return x
 
     def cuda(self,device=None):

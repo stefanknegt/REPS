@@ -1,6 +1,6 @@
 import torch
 
-def loss_reps(epsilon, eta, vs_curr, vs_next, rewards):
+def REPSLoss(epsilon, eta, vs_curr, vs_next, rewards):
     """
 
     :param epsilon: epsilon hyperparameter
