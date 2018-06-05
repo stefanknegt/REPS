@@ -125,7 +125,7 @@ def main():
 
     import random
     random.seed(42)
-    
+
     environment = LQR(-2, 2)
     policy_model = Random(-2, 2)
     value_model = Simple()
