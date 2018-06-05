@@ -1,5 +1,19 @@
 import torch
 
+def log_sum_exp(value):
+    """Numerically stable implementation of the operation
+
+    value.exp().sum(dim, keepdim).log()
+    """
+    m = torch.max(value)
+    sum_exp = torch.sum(torch.exp(value - m))
+
+    return m + torch.log(sum_exp)
+
+def bellman_error(eta, vs_curr, vs_next, rewards):
+    return (rewards+vs_next-vs_curr)/eta
+
+
 def REPSLoss(epsilon, eta, vs_curr, vs_next, rewards):
     """
 
@@ -11,5 +25,7 @@ def REPSLoss(epsilon, eta, vs_curr, vs_next, rewards):
     :return: reps loss
     """
 
-    #TODO might be numerically unstable (use logsumexp trick)
-    return epsilon * eta + eta * torch.log(torch.sum(torch.exp((rewards+vs_next-vs_curr)/eta))/vs_curr.size(0))
+    bell_error = bellman_error(eta, vs_curr, vs_next, rewards)
+    lsm = log_sum_exp(bell_error)
+
+    return epsilon * eta + eta * torch.log(torch.Tensor([vs_curr.size(0)**(-1)])) + eta * lsm

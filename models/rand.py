@@ -13,3 +13,4 @@ class Random(torch.nn.Module):
 
     def get_action(self, state):
         return self.forward(state)
+
