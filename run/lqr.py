@@ -13,7 +13,7 @@ from utils.sars import SARSDataset
 
 random.seed(3)
 
-environment = LQR(-1, 1)
+environment = LQR(-10, 10)
 policy_model = Random(-2, 2)
 value_model = Simple()
 
