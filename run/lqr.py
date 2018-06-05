@@ -11,17 +11,17 @@ from models.rand import Random
 from models.simple import Simple
 from utils.sars import SARSDataset
 
-random.seed(3)
+random.seed(42)
 
 environment = LQR(-10, 10)
 policy_model = Random(-2, 2)
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model)
-agent.improve_values(1, 100, 10000, 100)
+agent.improve_values(1, 100, 10000, 1000)
 
-state_space = np.arange(-4, 4.1, .1)
-action_space = np.arange(-4, 4.1, .1)
+state_space = np.arange(-2, 2.1, 0.1)
+action_space = np.arange(-2, 2.1, 0.1)
 
 # loop over state action pairs
 observations = []
@@ -41,9 +41,8 @@ prev_states = observations[:][:,0].view(len(observations), 1)
 actions = observations[:][:,1].view(len(observations), 1)
 rewards = observations[:][:,2].view(len(observations), 1)
 new_states = observations[:][:,3].view(len(observations), 1)
-print(prev_states.mean())
-weights = agent.calc_weights(prev_states, new_states, rewards)
 
+weights = agent.calc_weights(agent.value_model(prev_states), agent.value_model(new_states), rewards)
 sc = plt.scatter(prev_states.data, actions.data, c=weights.data)
 plt.colorbar(sc)
 plt.show()

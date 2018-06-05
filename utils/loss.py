@@ -1,5 +1,6 @@
 import torch
 
+
 def log_sum_exp(value):
     """Numerically stable implementation of the operation
 
@@ -9,6 +10,7 @@ def log_sum_exp(value):
     sum_exp = torch.sum(torch.exp(value - m))
 
     return m + torch.log(sum_exp)
+
 
 def bellman_error(eta, vs_curr, vs_next, rewards):
     return (rewards+vs_next-vs_curr)/eta
