@@ -5,24 +5,26 @@ class LQR:
     This is the class for the Linear Quadratic Rewards. Upon initialization it initializes
     random values for the state transistions and rewards. Then the functions can be called using the Step and Reset functions.
     '''
-    def __init__(self, min, max):
+    def __init__(self, range_min, range_max):
         #Initialize parameters for transistions and rewards:
-        self.C1 = random.random()
-        self.C2 = random.random()
-        self.C3 = random.random()
-        self.C4 = random.random()
+        self.range_min = range_min
+        self.range_max = range_max
+        self.C1 = 1#random.random()
+        self.C2 = 1#random.random()
+        self.C3 = 1#random.random()
+        self.C4 = 1#random.random()
 
         #Initialize a random starting state
-        self.state = random.uniform(-10, 10)
+        self.reset()
 
     def step(self, action):
         #We calculate the new state using the parameters:
         self.state = self.C3 * self.state + self.C4 * action
-        self.reward = - self.C1 * (self.state ** 2)  - self.C2 * (action ** 2)
+        self.reward = - self.C1 * (self.state ** 2) - self.C2 * (action ** 2)
         return self.state, self.reward
 
-    def reset(self, min, max):
-        self.state = random.uniform(min, max)
+    def reset(self):
+        self.state = random.uniform(self.range_min, self.range_max)
         return self.state
 
 

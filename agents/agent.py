@@ -4,6 +4,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.sars import SARSDataset
 from utils.loss import REPSLoss
 
+import torch
 import torch.optim as optim
 from torch.utils.data.dataloader import DataLoader
 
@@ -76,7 +77,7 @@ class Agent:
     def improve_policy(self):
         pass
 
-    def improve_values(self, max_epochs_exp=10, max_epochs_opt=200, timesteps=256, batch_size=256, learning_rate=1e-1, epsilon=0.5):
+    def improve_values(self, max_epochs_exp=10, max_epochs_opt=200, timesteps=256, batch_size=256, learning_rate=1e-1, epsilon=1):
         # sanity check
         batch_size = min(timesteps, batch_size)
         # init optimizer
@@ -86,6 +87,8 @@ class Agent:
         epochs_exp_no_decrease = 0
         epoch_exp = 0
         while (epoch_exp < max_epochs_exp) and (epochs_exp_no_decrease < 5):
+            # reset environment
+            self.environment.reset()
             # explore
             observations = SARSDataset(self.explore(timesteps))
             data_loader = DataLoader(observations, batch_size=batch_size, shuffle=True, num_workers=4)

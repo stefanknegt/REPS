@@ -3,7 +3,7 @@ from torch import Tensor
 from torch.nn import functional as F
 
 class Simple(torch.nn.Module):
-    def __init__(self, activation=F.relu):
+    def __init__(self, activation=F.tanh):
         """
         Creates neural network structure with
         :param layers: list with linear layer sizes (input_size, hid1, hid2 , hid3, ..., output_size)
