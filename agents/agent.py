@@ -73,7 +73,7 @@ class Agent:
     def improve_policy(self):
         pass
 
-    def improve_values(self, max_epochs_exp=1000, max_epochs_opt=1000, timesteps=1024, batch_size=1024, learning_rate=1e-3, epsilon=.5):
+    def improve_values(self, max_epochs_exp=10, max_epochs_opt=200, timesteps=256, batch_size=256, learning_rate=1e-1, epsilon=0.5):
         # sanity check
         batch_size = min(timesteps, batch_size)
         # init optimizer
@@ -118,14 +118,16 @@ class Agent:
 def main():
     from environments.lqr import LQR
     from models.rand import Random
-    from models.mlp import MLP
-
-    environment = LQR(-10, 10)
-    policy_model = Random()
-    value_model = MLP([1, 16, 1])
+    from models.simple import Simple
+    import random
+    random.seed(42)
+    environment = LQR(-2, 2)
+    policy_model = Random(-2, 2)
+    value_model = Simple()
 
     agent = Agent(environment, policy_model, value_model)
     agent.improve_values()
+    print([ p for p in agent.value_model.parameters()])
 
 if __name__ == '__main__':
     main()
