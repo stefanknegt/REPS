@@ -77,7 +77,7 @@ class Agent:
     def improve_policy(self):
         pass
 
-    def improve_values(self, max_epochs_exp=10, max_epochs_opt=200, timesteps=256, batch_size=256, learning_rate=1e-1, epsilon=0.5):
+    def improve_values(self, max_epochs_exp=10, max_epochs_opt=200, timesteps=256, batch_size=256, learning_rate=1e-1, epsilon=0.1):
         # sanity check
         batch_size = min(timesteps, batch_size)
         # init optimizer

@@ -14,11 +14,11 @@ from utils.sars import SARSDataset
 random.seed(3)
 
 environment = LQR(-1, 1)
-policy_model = Random(-0.2, 0.2)
+policy_model = Random(-2, 2)
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model)
-agent.improve_values(10, 50, 10000, 100)
+agent.improve_values(1, 100, 10000, 100)
 
 state_space = np.arange(-4, 4.1, .1)
 action_space = np.arange(-4, 4.1, .1)
