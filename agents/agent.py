@@ -62,8 +62,8 @@ class Agent:
 
     def calc_loss(self, batch, batch_size, epsilon):
         # forward pass
-        prev_states = batch[:, 0].view(batch_size, 1)
-        new_states = batch[:, 3].view(batch_size, 1)
+        prev_states = batch[:,0].view(batch_size, 1)
+        new_states = batch[:,3].view(batch_size, 1)
         prev_value_predictions = self.value_model(prev_states)
         new_value_predictions = self.value_model(new_states)
         # calculate loss
@@ -120,7 +120,7 @@ def main():
     from models.rand import Random
     from models.simple import Simple
     import random
-    random.seed(42)
+    random.rand(42)
     environment = LQR(-2, 2)
     policy_model = Random(-2, 2)
     value_model = Simple()
