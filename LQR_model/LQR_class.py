@@ -7,10 +7,10 @@ class LQR:
     '''
     def __init__(self, min, max):
         #Initialize parameters for transistions and rewards:
-        self.C1 = random.random()
-        self.C2 = random.random()
-        self.C3 = random.random()
-        self.C4 = random.random()
+        self.C1 = 0.3#random.random()
+        self.C2 = 0.7 #random.random()
+        self.C3 = 0.8 #random.random()
+        self.C4 = 0.8 #random.random()
 
         #Initialize a random starting state
         self.state = random.uniform(-10, 10)
@@ -25,6 +25,10 @@ class LQR:
         self.state = random.uniform(min, max)
         return self.state
 
+    def get_reward(self, a_state, an_action):
+        a_end_state = self.C3 * a_state + self.C4 * an_action
+        a_reward = - self.C1 * (a_state ** 2)  - self.C2 * (an_action ** 2)
+        return a_end_state, a_reward
 
 def main():
     #Initialize an environment
@@ -38,7 +42,7 @@ def main():
         data = {}
         data['prev_state'] = env.state
         data['action'] = random.uniform(-1,1)
-        data['new_state'], data['reward'] = env.step(data['action']) 
+        data['new_state'], data['reward'] = env.step(data['action'])
 
         #Put the dict in a list:
         batch_data.append(data)
