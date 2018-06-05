@@ -62,8 +62,8 @@ class Agent:
 
     def calc_loss(self, batch, batch_size, epsilon):
         # forward pass
-        prev_states = batch[:,0].view(batch_size, 1)
-        new_states = batch[:,3].view(batch_size, 1)
+        prev_states = batch[:, 0].view(batch_size, 1)
+        new_states = batch[:, 3].view(batch_size, 1)
         prev_value_predictions = self.value_model(prev_states)
         new_value_predictions = self.value_model(new_states)
         # calculate loss
