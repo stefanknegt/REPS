@@ -15,6 +15,7 @@ class MLP(torch.nn.Module):
         #     self.layers.append(torch.nn.Linear(layers[i], layers[i+1]))
         self.fc1 = torch.nn.Linear(1, 16)
         self.fc2 = torch.nn.Linear(16, 1)
+        self.eta = torch.nn.Parameter(torch.rand(1))
 
     def forward(self, x):
         """
@@ -28,7 +29,7 @@ class MLP(torch.nn.Module):
         # "Last layer without activation (no output domain restriction)"
         # x = self.layers[-1](x)
         x = self.activation(self.fc1(x))
-        x = self.activation(self.fc2(x))
+        x = self.fc2(x)
         return x
 
     def cuda(self,device=None):

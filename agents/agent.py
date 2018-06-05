@@ -66,7 +66,7 @@ class Agent:
     def improve_values(self):
         # init hyperparameters
         timesteps = 4096
-        batch_size = 8
+        batch_size = 16
         learning_rate = 1e-3
         epsilon = .1
         eta = 1
@@ -83,7 +83,7 @@ class Agent:
             # calculate loss
             rewards = batch[:,2].view(batch_size, 1)
             new_states = batch[:,3].view(batch_size, 1)
-            loss = REPSLoss(epsilon, eta, value_predictions, new_states, rewards)
+            loss = REPSLoss(epsilon, self.value_model.eta, value_predictions, new_states, rewards)
             print("current loss:", loss)
             # backpropagate
             loss.backward()
