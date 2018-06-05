@@ -70,6 +70,9 @@ class Agent:
         rewards = batch[:,2].view(batch_size, 1)
         return REPSLoss(epsilon, self.value_model.eta, prev_value_predictions, new_value_predictions, rewards)
 
+    def calc_weights(self, prev_states, new_states, rewards):
+        return torch.exp((rewards - prev_states + new_states)/self.value_model.eta)
+
     def improve_policy(self):
         pass
 
@@ -119,8 +122,10 @@ def main():
     from environments.lqr import LQR
     from models.rand import Random
     from models.simple import Simple
+
     import random
     random.seed(42)
+    
     environment = LQR(-2, 2)
     policy_model = Random(-2, 2)
     value_model = Simple()
