@@ -60,34 +60,60 @@ class Agent:
         self.observations.append(new_observations)
         return new_observations
 
+    def calc_loss(self, batch, batch_size, epsilon):
+        # forward pass
+        prev_states = batch[:,0].view(batch_size, 1)
+        new_states = batch[:,3].view(batch_size, 1)
+        prev_value_predictions = self.value_model(prev_states)
+        new_value_predictions = self.value_model(new_states)
+        # calculate loss
+        rewards = batch[:,2].view(batch_size, 1)
+        return REPSLoss(epsilon, self.value_model.eta, prev_value_predictions, new_value_predictions, rewards)
+
     def improve_policy(self):
         pass
 
-    def improve_values(self):
-        # init hyperparameters
-        timesteps = 4096
-        batch_size = 16
-        learning_rate = 1e-3
-        epsilon = .1
-        eta = 1
-        # explore
-        observations = SARSDataset(self.explore(timesteps))
-        data_loader = DataLoader(observations, batch_size=batch_size, shuffle=True, num_workers=4)
-        # train on batches
+    def improve_values(self, max_epochs_exp=1000, max_epochs_opt=1000, timesteps=1024, batch_size=1024, learning_rate=1e-3, epsilon=.5):
+        # sanity check
+        batch_size = min(timesteps, batch_size)
+        # init optimizer
         optimizer = optim.Adagrad(self.value_model.parameters(), lr=learning_rate)
-        for batch_idx, batch in enumerate(data_loader):
-            optimizer.zero_grad()
-            # forward pass
-            prev_states = batch[:,0].view(batch_size, 1)
-            value_predictions = self.value_model(prev_states)
-            # calculate loss
-            rewards = batch[:,2].view(batch_size, 1)
-            new_states = batch[:,3].view(batch_size, 1)
-            loss = REPSLoss(epsilon, self.value_model.eta, value_predictions, new_states, rewards)
-            print("current loss:", loss)
-            # backpropagate
-            loss.backward()
-            optimizer.step()
+        # exploration loop
+        last_loss_exp = None
+        epochs_exp_no_decrease = 0
+        epoch_exp = 0
+        while (epoch_exp < max_epochs_exp) and (epochs_exp_no_decrease < 5):
+            # explore
+            observations = SARSDataset(self.explore(timesteps))
+            data_loader = DataLoader(observations, batch_size=batch_size, shuffle=True, num_workers=4)
+            # train on batches
+            last_loss_opt = None
+            epochs_opt_no_decrease = 0
+            epoch_opt = 0
+            while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 5):
+                for batch_idx, batch in enumerate(data_loader):
+                    optimizer.zero_grad()
+                    loss = self.calc_loss(batch, batch_size, epsilon)
+                    # backpropagate
+                    loss.backward()
+                    optimizer.step()
+                epoch_opt += 1
+                # evaluate optimization iteration
+                cur_loss_opt = self.calc_loss(observations[:], len(observations), epsilon)
+                print(epoch_exp, "-", epoch_opt, "epoch, loss:", cur_loss_opt)
+                if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+                    epochs_opt_no_decrease = 0
+                else:
+                    epochs_opt_no_decrease += 1
+                last_loss_opt = cur_loss_opt
+                epoch_opt += 1
+            # evaluate exploration iteration
+            if (last_loss_exp is None) or (last_loss_opt < last_loss_exp):
+                epochs_exp_no_decrease = 0
+            else:
+                epochs_exp_no_decrease += 1
+            last_loss_exp = last_loss_opt
+            epoch_exp += 1
 
 def main():
     from environments.lqr import LQR
