@@ -16,11 +16,11 @@ random.seed(42)
 
 environment = LQR(-10, 10)
 policy_model = Random(-2, 2)
-policy_model = PolicyNormal([1,3,1])
+policy_model = PolicyNormal([1,1])
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
-agent.improve_values(100, 1, 10000, 1000)
+agent.improve_values(100, 100, 100, 1000)
 
 state_space = np.arange(-2, 2.1, 0.1)
 action_space = np.arange(-2, 2.1, 0.1)
