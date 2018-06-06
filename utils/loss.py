@@ -35,9 +35,9 @@ def REPSLoss(epsilon, eta, vs_curr, vs_next, rewards):
 
 
 def NormalPolicyLoss_1D(mu, sigma, actions, weights):
-    normalizer = -torch.log(2*np.pi*(sigma**2))/2
-    exponent = -((actions-mu)**2)/(2*(sigma**2))
-    loss = torch.dot(weights.squeeze(), -(exponent + normalizer).squeeze()) / torch.sum(weights)
+    normalizer = torch.log(sigma**2)/2
+    exponent = ((actions-mu)**2)/(2*(sigma**2))
+    loss = torch.dot(weights.squeeze(), (exponent + normalizer).squeeze()) / torch.sum(weights)
     return loss
 
 

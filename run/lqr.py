@@ -21,8 +21,10 @@ policy_model = policy_model_normal
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
-agent.improve_values(100, 100, 100, 1000)
-agent.improve_policy()
+for i in range(10):
+    agent.improve_values(100, 500, (i+1)*2, 1000)
+    agent.improve_policy()
+    print("Average reward:", agent.average_reward())
 
 state_space = np.arange(-2, 2.1, 0.1)
 action_space = np.arange(-2, 2.1, 0.1)

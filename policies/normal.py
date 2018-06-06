@@ -12,8 +12,8 @@ from utils.loss import NormalPolicyLoss_1D
 class NormalPolicy():
     def __init__(self, initial_policy, layers, activation=F.relu):
         self.initial_policy = initial_policy
-        self.mu_net = MLP(layers, activation)
-        self.sigma_net = MLP(layers, activation)
+        self.mu_net = Simple(activation)
+        self.sigma_net = Simple(activation)
 
     def get_mu(self, states):
         return self.mu_net.forward(states)
@@ -23,8 +23,8 @@ class NormalPolicy():
 
     def get_action(self, state):
         # random action if untrained
-        if self.initial_policy is not None:
-            return self.initial_policy.get_action(state)
+        # if self.initial_policy is not None:
+        #     return self.initial_policy.get_action(state)
         # sample from normal otherwise
         if state.dim() < 2:
             state.unsqueeze_(0)

@@ -40,6 +40,9 @@ class Agent:
         """
         return self.policy_model.get_action(state)
 
+    def average_reward(self):
+        return (torch.mean(self.observations[:][:, 2])).data
+
     def explore(self, episodes, timesteps):
         """
         Explore the environment for t timesteps.
