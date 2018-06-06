@@ -9,10 +9,10 @@ class LQR:
         #Initialize parameters for transistions and rewards:
         self.range_min = range_min
         self.range_max = range_max
-        self.C1 = 0.5#random.random()
+        self.C1 = 1#random.random()
         self.C2 = 0.5#random.random()
         self.C3 = 1#random.random()
-        self.C4 = 1#random.random()
+        self.C4 = 1   #random.random()
 
         #Initialize a random starting state
         self.reset()
@@ -20,6 +20,10 @@ class LQR:
     def step(self, action):
         #We calculate the new state using the parameters:
         self.state = self.C3 * self.state + self.C4 * action
+
+        self.state = max([self.state, self.range_min])
+        self.state = min([self.state, self.range_max])
+
         self.reward = - self.C1 * (self.state ** 2) - self.C2 * (action ** 2)
         return self.state, self.reward
 

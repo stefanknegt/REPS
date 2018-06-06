@@ -10,16 +10,16 @@ from models.simple import Simple
 from utils.loss import NormalPolicyLoss_1D
 
 class NormalPolicy():
-    def __init__(self, initial_policy, layers, activation=F.relu):
+    def __init__(self, initial_policy, activation=F.relu):
         self.initial_policy = initial_policy
         self.mu_net = Simple(activation)
-        self.sigma_net = Simple(activation)
+        self.mu_net.fc1.weight.data = Tensor([[0, 0]])
 
     def get_mu(self, states):
         return self.mu_net.forward(states)
 
     def get_sigma(self, states):
-        return torch.ones(states.shape)*0.1
+        return self.mu_net.eta
 
     def get_action(self, state):
         # random action if untrained
@@ -33,22 +33,20 @@ class NormalPolicy():
         mean.squeeze()
         std_dev.squeeze()
         m = torch.randn(1) * std_dev + mean
-        return Tensor(m.data)
+        return m.data
 
     def optimize(self, train_dataset, val_dataset, batch_size, learning_rate, verbose=False):
         # init data loader
         train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         # init optimizers
         optimizer_mu = optim.Adagrad(self.mu_net.parameters(), lr=learning_rate)
-        optimizer_sigma = optim.Adagrad(self.sigma_net.parameters(), lr=learning_rate)
         # train on batches
         last_loss_opt = None
         epochs_opt_no_decrease = 0
         epoch_opt = 0
-        while (epochs_opt_no_decrease < 5):
+        while (epochs_opt_no_decrease < 3):
             for batch_idx, batch in enumerate(train_data_loader):
                 optimizer_mu.zero_grad()
-                optimizer_sigma.zero_grad()
                 # forward pass
                 mu = self.mu_net(batch[0])
                 sigma = self.get_sigma(batch[0])
@@ -56,7 +54,6 @@ class NormalPolicy():
                 # backpropagate
                 loss.backward()
                 optimizer_mu.step()
-                optimizer_sigma.step()
             # calculate loss on validation data
             mu = self.get_mu(val_dataset[0])
             sigma = self.get_sigma(val_dataset[0])
@@ -69,5 +66,7 @@ class NormalPolicy():
             else:
                 epochs_opt_no_decrease += 1
             epoch_opt += 1
+        print("Thetas:", self.mu_net.fc1.weight.data.data, "sigma: ", self.mu_net.eta.data)
+
         # remove reliance on initial policy
         self.initial_policy = None

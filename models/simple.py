@@ -8,7 +8,7 @@ class Simple(torch.nn.Module):
         self.layers = []
         self.activation = activation
         self.fc1 = torch.nn.Linear(2, 1, bias=None)
-        self.eta = torch.nn.Parameter(Tensor([0.5]))
+        self.eta = torch.nn.Parameter(Tensor([1]))
 
     def forward(self, x):
         x = torch.cat((x, x**2), 1)

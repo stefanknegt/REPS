@@ -43,7 +43,7 @@ class Agent:
     def average_reward(self):
         return (torch.mean(self.observations[:][:, 2])).data
 
-    def explore(self, episodes, timesteps):
+    def explore(self, episodes, timesteps, remove_old=False):
         """
         Explore the environment for t timesteps.
 
@@ -60,7 +60,7 @@ class Agent:
             if t % timesteps == 0:
                 cur_state = self.environment.reset()
             # perform action according to policy
-            cur_action = self.get_action(Tensor([cur_state]))
+            cur_action = Tensor(self.get_action(Tensor([cur_state])).data)
             new_state, new_reward = self.environment.step(cur_action)
             # save new observation
             new_observations.append({
@@ -70,8 +70,10 @@ class Agent:
                     'new_state':new_state})
             # iterate
             cur_state = new_state
-
-        self.observations.append(new_observations)
+        if remove_old:
+            self.observations = SARSDataset(new_observations)
+        else:
+            self.observations.append(new_observations)
         if self.verbose: print("added", len(new_observations), "observations ( total", len(self.observations), ")")
         return new_observations
 
@@ -96,7 +98,7 @@ class Agent:
         """
         return torch.exp((rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta)
 
-    def improve_policy(self, learning_rate=1e-1, val_ratio=0.1, batch_size=100):
+    def improve_policy(self, learning_rate=5e-2, val_ratio=0.1, batch_size=100):
         # load datasets
         prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
         actions = self.observations[:][:, 1].view(len(self.observations), 1)
@@ -118,11 +120,9 @@ class Agent:
         # optimize
         self.policy_model.optimize(train_dataset, val_dataset, batch_size, learning_rate, verbose=self.verbose)
 
-    def improve_values(self, max_epochs_opt=50, episodes=10, timesteps=10, batch_size=100, learning_rate=1e-2, epsilon=0.1):
+    def improve_values(self, max_epochs_opt=50, batch_size=100, learning_rate=1e-2, epsilon=0.1):
         # init optimizer
         optimizer = optim.Adagrad(self.value_model.parameters(), lr=learning_rate)
-        # explore with timesteps/episode
-        self.explore(episodes, timesteps)
         # train on observation batches
         data_loader = DataLoader(self.observations, batch_size=batch_size, shuffle=True, num_workers=4)
         last_loss_opt = None
@@ -148,20 +148,20 @@ class Agent:
 
 def main():
     from environments.lqr import LQR
-    from models.rand import Random
+    #from models.rand import Random
     from models.simple import Simple
 
     import random
-    random.seed(42)
-
-    environment = LQR(-2, 2)
-    policy_model = PolicyNormal([1, 1])
-    value_model = Simple()
-
-    agent = Agent(environment, policy_model, value_model, verbose=True)
-    agent.improve_values(episodes=1000, timesteps=5)
-    #print([ p for p in agent.value_model.parameters()])
-    agent.improve_policy()
+    # random.seed(42)
+    #
+    # environment = LQR(-2, 2)
+    # #policy_model = PolicyNormal([1, 1])
+    # value_model = Simple()
+    #
+    # #agent = Agent(environment, policy_model, value_model, verbose=True)
+    # agent.improve_values(episodes=1000, timesteps=5)
+    # #print([ p for p in agent.value_model.parameters()])
+    # agent.improve_policy()
 
 
 if __name__ == '__main__':
