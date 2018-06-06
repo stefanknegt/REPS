@@ -7,20 +7,22 @@ import matplotlib.pyplot as plt
 import torch
 from agents.agent import Agent
 from environments.lqr import LQR
-from models.rand import Random
 from models.simple import Simple
-from models.policy_normal import PolicyNormal
+from policies.rand import RandomPolicy
+from policies.normal import NormalPolicy
 from utils.data import SARSDataset
 
 random.seed(42)
 
 environment = LQR(-10, 10)
-policy_model = Random(-2, 2)
-policy_model = PolicyNormal([1,1])
+policy_model_random = RandomPolicy(-2, 2)
+policy_model_normal = NormalPolicy(policy_model_random, [1,1])
+policy_model = policy_model_normal
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
 agent.improve_values(100, 100, 100, 1000)
+agent.improve_policy()
 
 state_space = np.arange(-2, 2.1, 0.1)
 action_space = np.arange(-2, 2.1, 0.1)
