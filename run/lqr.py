@@ -10,7 +10,7 @@ from environments.lqr import LQR
 from models.rand import Random
 from models.simple import Simple
 from models.policy_normal import PolicyNormal
-from utils.sars import SARSDataset
+from utils.data import SARSDataset
 
 random.seed(42)
 

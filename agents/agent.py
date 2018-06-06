@@ -1,7 +1,7 @@
 import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from utils.sars import SARSDataset
+from utils.data import SARSDataset
 from utils.loss import REPSLoss
 from utils.loss import NormalPolicyLoss_1D
 
@@ -96,34 +96,35 @@ class Agent:
         """
         return torch.exp((rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta)
 
-    def improve_policy(self, learning_rate=1e-1, validation_ratio=0.1, batch_size=16):
+    def split_policy_observations(self, ratio):
         prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
         actions = self.observations[:][:, 1].view(len(self.observations), 1)
         rewards = self.observations[:][:, 2].view(len(self.observations), 1)
         new_states = self.observations[:][:, 3].view(len(self.observations), 1)
+        weights = self.calc_weights(prev_states, new_states, rewards)
 
-        weights = self.calc_weights(self.value_model(prev_states), self.value_model(new_states), rewards)
+        observation_size = weights.size()[0]
+        val_size = round(ratio*observation_size)
+        train_size = observation_size - val_size
 
-        N = weights.size()[0]
+        train_dataset = torch.utils.data.TensorDataset(
+            prev_states[val_size:],
+            actions[val_size:],
+            torch.FloatTensor(weights.data[val_size:]))
 
-        val_size = round(validation_ratio*N)
-        train_size = N - val_size
+        valid_dataset = [
+            prev_states[:val_size - 1],
+            actions[:val_size - 1],
+            weights[:val_size - 1]]
 
-        train_dataset = torch.utils.data.TensorDataset(prev_states[val_size:], actions[val_size:],
-                                                       torch.Tensor(weights.data[val_size:]))
+        return train_dataset, valid_dataset
 
-        valid_dataset = [prev_states[:val_size - 1],
-                         actions[:val_size - 1],
-                         weights[:val_size - 1]]
-
+    def improve_policy(self, learning_rate=1e-1, validation_ratio=0.1, batch_size=16):
+        # load datasets
+        train_dataset, valid_dataset = self.split_policy_observations(validation_ratio)
         data_loader_train = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         optimizer_mu = optim.Adagrad(self.policy_model.mu_net.parameters(), lr=learning_rate)
         optimizer_sigma = optim.Adagrad(self.policy_model.sigma_net.parameters(), lr=learning_rate)
-
-        # exploration loop
-        last_loss_exp = None
-        epochs_exp_no_decrease = 0
-        epoch_exp = 0
         # train on batches
         last_loss_opt = None
         epochs_opt_no_decrease = 0
@@ -141,25 +142,17 @@ class Agent:
 
                 optimizer_mu.step()
                 optimizer_sigma.step()
-            epoch_opt += 1
             # evaluate optimization iteration
             mu = self.policy_model.get_mu(valid_dataset[0])
             sigma = self.policy_model.get_sigma(valid_dataset[0])
             cur_loss_opt = NormalPolicyLoss_1D(mu, sigma, valid_dataset[1], valid_dataset[2])
-            print(epoch_exp, "-", epoch_opt, "epoch, loss:", cur_loss_opt)
+            print(epoch_opt, "epoch, loss:", cur_loss_opt)
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                 epochs_opt_no_decrease = 0
             else:
                 epochs_opt_no_decrease += 1
             last_loss_opt = cur_loss_opt
             epoch_opt += 1
-        # evaluate exploration iteration
-        if (last_loss_exp is None) or (last_loss_opt < last_loss_exp):
-            epochs_exp_no_decrease = 0
-        else:
-            epochs_exp_no_decrease += 1
-        last_loss_exp = last_loss_opt
-        epoch_exp += 1
 
     def improve_values(self, max_epochs_opt=50, episodes=10, timesteps=50, batch_size=50, learning_rate=1e-2, epsilon=0.1):
         # sanity check
@@ -180,10 +173,9 @@ class Agent:
                 # backpropagate
                 loss.backward()
                 optimizer.step()
-            epoch_opt += 1
             # evaluate optimization iteration
             cur_loss_opt = self.calc_loss(self.observations[:], len(self.observations), epsilon)
-            if self.verbose: print("epoch:", epoch_opt, "of", max_epochs_opt, "with loss:", cur_loss_opt)
+            if self.verbose: print("epoch:", epoch_opt+1, "of", max_epochs_opt, "with loss:", cur_loss_opt)
 
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                 epochs_opt_no_decrease = 0
