@@ -9,6 +9,7 @@ from models.policy_normal import PolicyNormal
 
 import torch
 import torch.optim as optim
+from torch import Tensor
 from torch.utils.data.dataloader import DataLoader
 
 class Agent:
@@ -50,7 +51,7 @@ class Agent:
         cur_state = self.environment.state
         for t in range(timesteps):
             # perform action according to policy
-            cur_action = self.get_action(cur_state)
+            cur_action = self.get_action(Tensor([cur_state]))
             new_state, new_reward = self.environment.step(cur_action)
             # save new observation
             new_observations.append({
@@ -172,7 +173,7 @@ class Agent:
                     optimizer.step()
                 epoch_opt += 1
                 # evaluate optimization iteration
-                cur_loss_opt = self.calc_loss(observations[:], len(observations), epsilon)
+                cur_loss_opt = self.calc_loss(self.observations[:], len(self.observations), epsilon)
                 print(epoch_exp, "-", epoch_opt, "epoch, loss:", cur_loss_opt)
                 if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                     epochs_opt_no_decrease = 0

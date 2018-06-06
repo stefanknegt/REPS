@@ -11,8 +11,8 @@ class PolicyNormal():
         self.sigma_net = MLP(layers, activation)
 
     def get_action(self, state):
-        mean = self.mu_net.forward(Tensor([state]))
-        std_dev = self.sigma_net.forward(Tensor([state]))
+        mean = self.mu_net.forward(state)
+        std_dev = self.get_sigma(state)
 
         m = Normal(mean, std_dev)
         return m.sample()
