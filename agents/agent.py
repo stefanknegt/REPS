@@ -3,6 +3,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.sars import SARSDataset
 from utils.loss import REPSLoss
+from utils.loss import NormalPolicyLoss_1D
+
+from models.policy_normal import PolicyNormal
 
 import torch
 import torch.optim as optim
@@ -74,10 +77,74 @@ class Agent:
     def calc_weights(self, prev_states, new_states, rewards):
         return torch.exp((rewards - prev_states + new_states)/self.value_model.eta)
 
-    def improve_policy(self):
-        pass
+    def improve_policy(self, learning_rate=1e-1, validation_ratio=0.1, batch_size=16):
+        prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
+        actions = self.observations[:][:, 1].view(len(self.observations), 1)
+        rewards = self.observations[:][:, 2].view(len(self.observations), 1)
+        new_states = self.observations[:][:, 3].view(len(self.observations), 1)
 
-    def improve_values(self, max_epochs_exp=10, max_epochs_opt=200, timesteps=256, batch_size=256, learning_rate=1e-2, epsilon=0.1):
+        weights = self.calc_weights(self.value_model(prev_states), self.value_model(new_states), rewards)
+
+        N = weights.size()[0]
+
+        val_size = round(validation_ratio*N)
+        train_size = N - val_size
+
+        train_dataset = torch.utils.data.TensorDataset(prev_states[val_size:], actions[val_size:],
+                                                       torch.Tensor(weights.data[val_size:]))
+
+        valid_dataset = [prev_states[:val_size - 1],
+                         actions[:val_size - 1],
+                         weights[:val_size - 1]]
+
+        data_loader_train = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+        optimizer_mu = optim.Adagrad(self.policy_model.mu_net.parameters(), lr=learning_rate)
+        optimizer_sigma = optim.Adagrad(self.policy_model.sigma_net.parameters(), lr=learning_rate)
+
+        # exploration loop
+        last_loss_exp = None
+        epochs_exp_no_decrease = 0
+        epoch_exp = 0
+        # train on batches
+        last_loss_opt = None
+        epochs_opt_no_decrease = 0
+        epoch_opt = 0
+        while (epochs_opt_no_decrease < 5):
+            for batch_idx, batch in enumerate(data_loader_train):
+                optimizer_mu.zero_grad()
+                optimizer_sigma.zero_grad()
+                mu = self.policy_model.mu_net(batch[0])
+                sigma = self.policy_model.get_sigma(batch[0])
+                loss = NormalPolicyLoss_1D(mu, sigma, batch[1],
+                                           batch[2])
+                # backpropagate
+                loss.backward()
+
+                optimizer_mu.step()
+                optimizer_sigma.step()
+            epoch_opt += 1
+            # evaluate optimization iteration
+            mu = self.policy_model.get_mu(valid_dataset[0])
+            sigma = self.policy_model.get_sigma(valid_dataset[0])
+            cur_loss_opt = NormalPolicyLoss_1D(mu, sigma, valid_dataset[1], valid_dataset[2])
+            print(epoch_exp, "-", epoch_opt, "epoch, loss:", cur_loss_opt)
+            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+                epochs_opt_no_decrease = 0
+            else:
+                epochs_opt_no_decrease += 1
+            last_loss_opt = cur_loss_opt
+            epoch_opt += 1
+        # evaluate exploration iteration
+        if (last_loss_exp is None) or (last_loss_opt < last_loss_exp):
+            epochs_exp_no_decrease = 0
+        else:
+            epochs_exp_no_decrease += 1
+        last_loss_exp = last_loss_opt
+        epoch_exp += 1
+
+
+
+    def improve_values(self, max_epochs_exp=10, max_epochs_opt=50, timesteps=50, batch_size=50, learning_rate=1e-2, epsilon=0.1):
         # sanity check
         batch_size = min(timesteps, batch_size)
         # init optimizer
@@ -90,8 +157,8 @@ class Agent:
             # reset environment
             self.environment.reset()
             # explore
-            observations = SARSDataset(self.explore(timesteps))
-            data_loader = DataLoader(observations, batch_size=batch_size, shuffle=True, num_workers=4)
+            self.explore(timesteps)
+            data_loader = DataLoader(self.observations, batch_size=batch_size, shuffle=True, num_workers=4)
             # train on batches
             last_loss_opt = None
             epochs_opt_no_decrease = 0
@@ -130,12 +197,13 @@ def main():
     random.seed(42)
 
     environment = LQR(-2, 2)
-    policy_model = Random(-2, 2)
+    policy_model = PolicyNormal([1, 5, 10, 1])
     value_model = Simple()
 
     agent = Agent(environment, policy_model, value_model)
-    agent.improve_values()
-    print([ p for p in agent.value_model.parameters()])
+    agent.improve_values(1,timesteps=1000)
+    #print([ p for p in agent.value_model.parameters()])
+    agent.improve_policy()
 
 if __name__ == '__main__':
     main()

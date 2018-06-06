@@ -1,5 +1,5 @@
 import torch
-
+import numpy as np
 
 def log_sum_exp(value):
     """Numerically stable implementation of the operation
@@ -31,3 +31,12 @@ def REPSLoss(epsilon, eta, vs_curr, vs_next, rewards):
     lsm = log_sum_exp(bell_error)
 
     return epsilon * eta + eta * torch.log(torch.Tensor([vs_curr.size(0)**(-1)])) + eta * lsm
+
+
+def NormalPolicyLoss_1D(mu, sigma, actions, weights):
+    normalizer = -torch.log(2*np.pi*(sigma**2))/2
+    exponent = -((actions-mu)**2)/(2*(sigma**2))
+    loss = torch.dot(weights.squeeze(), -(exponent + normalizer).squeeze())
+    return loss
+
+
