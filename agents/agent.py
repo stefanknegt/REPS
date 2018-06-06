@@ -196,9 +196,10 @@ def main():
     value_model = Simple()
 
     agent = Agent(environment, policy_model, value_model, verbose=True)
-    agent.improve_values(episodes=1000, timesteps=50)
+    agent.improve_values(episodes=1000, timesteps=5)
     #print([ p for p in agent.value_model.parameters()])
     agent.improve_policy()
+
 
 if __name__ == '__main__':
     main()
