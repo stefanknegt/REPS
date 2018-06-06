@@ -44,7 +44,7 @@ actions = observations[:][:,1].view(len(observations), 1)
 rewards = observations[:][:,2].view(len(observations), 1)
 new_states = observations[:][:,3].view(len(observations), 1)
 
-weights = agent.calc_weights(agent.value_model(prev_states), agent.value_model(new_states), rewards)
+weights = agent.calc_weights(prev_states, new_states, rewards)
 sc = plt.scatter(prev_states.data, actions.data, c=weights.data)
 plt.colorbar(sc)
 plt.show()

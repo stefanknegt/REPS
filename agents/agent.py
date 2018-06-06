@@ -49,6 +49,7 @@ class Agent:
 
         :param episodes (int): number of episodes to explore
         :param timesteps (int): number of timesteps per episode
+        :return newly collected observations
         """
         # initialize exploration
         if self.verbose: print("exploring", episodes, "with", timesteps, "timesteps each")
@@ -85,7 +86,15 @@ class Agent:
         return REPSLoss(epsilon, self.value_model.eta, prev_value_predictions, new_value_predictions, rewards)
 
     def calc_weights(self, prev_states, new_states, rewards):
-        return torch.exp((rewards - prev_states + new_states)/self.value_model.eta)
+        """
+        Calculate weights for state pairs
+
+        :param prev_states (Tensor): previous states
+        :param new_states (Tensor): new states
+        :param rewards (Tensor): rewards
+        :return tensor containing weights of state pairs
+        """
+        return torch.exp((rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta)
 
     def improve_policy(self, learning_rate=1e-1, validation_ratio=0.1, batch_size=16):
         prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
@@ -151,8 +160,6 @@ class Agent:
             epochs_exp_no_decrease += 1
         last_loss_exp = last_loss_opt
         epoch_exp += 1
-
-
 
     def improve_values(self, max_epochs_opt=50, episodes=10, timesteps=50, batch_size=50, learning_rate=1e-2, epsilon=0.1):
         # sanity check
