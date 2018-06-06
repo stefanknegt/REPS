@@ -17,19 +17,22 @@ class Agent:
     Superclass for RL agents.
     """
 
-    def __init__(self, environment, policy_model, value_model):
+    def __init__(self, environment, policy_model, value_model, verbose=False):
         """
         Constructor of agent.
 
         :param environment: environment object with step and reset functions
         :param policy model (nn.Module): optimizable policy estimator
         :param value model (nn.Module): with optimizable value estimator
+        :param verbose (bool): verbosity of the agent
         """
         self.environment = environment
         self.policy_model = policy_model
         self.value_model = value_model
 
         self.observations = SARSDataset()
+
+        self.verbose = verbose
 
     def get_action(self, state):
         """
@@ -40,16 +43,21 @@ class Agent:
         """
         return self.policy_model.get_action(state)
 
-    def explore(self, timesteps):
+    def explore(self, episodes, timesteps):
         """
         Explore the environment for t timesteps.
 
-        :param timesteps (int): number of timesteps to explore
+        :param episodes (int): number of episodes to explore
+        :param timesteps (int): number of timesteps per episode
         """
         # initialize exploration
+        if self.verbose: print("exploring", episodes, "with", timesteps, "timesteps each")
         new_observations = []
         cur_state = self.environment.state
-        for t in range(timesteps):
+        for t in range(episodes*timesteps):
+            # reset environment
+            if t%timesteps == 0:
+                self.environment.reset()
             # perform action according to policy
             cur_action = self.get_action(Tensor([cur_state]))
             new_state, new_reward = self.environment.step(cur_action)
@@ -63,6 +71,7 @@ class Agent:
             cur_state = new_state
 
         self.observations.append(new_observations)
+        if self.verbose: print("added", len(new_observations), "observations ( total", len(self.observations), ")")
         return new_observations
 
     def calc_loss(self, batch, batch_size, epsilon):
@@ -145,49 +154,36 @@ class Agent:
 
 
 
-    def improve_values(self, max_epochs_exp=10, max_epochs_opt=50, timesteps=1000, batch_size=100, learning_rate=1e-2, epsilon=0.1):
+    def improve_values(self, max_epochs_opt=50, episodes=10, timesteps=50, batch_size=50, learning_rate=1e-2, epsilon=0.1):
         # sanity check
         batch_size = min(timesteps, batch_size)
         # init optimizer
         optimizer = optim.Adagrad(self.value_model.parameters(), lr=learning_rate)
-        # exploration loop
-        last_loss_exp = None
-        epochs_exp_no_decrease = 0
-        epoch_exp = 0
-        while (epoch_exp < max_epochs_exp) and (epochs_exp_no_decrease < 5):
-            # reset environment
-            self.environment.reset()
-            # explore
-            self.explore(timesteps)
+        # explore with timesteps/episode
+        self.explore(episodes, timesteps)
+        # train on observation batches
+        last_loss_opt = None
+        epochs_opt_no_decrease = 0
+        epoch_opt = 0
+        while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 5):
             data_loader = DataLoader(self.observations, batch_size=batch_size, shuffle=True, num_workers=4)
-            # train on batches
-            last_loss_opt = None
-            epochs_opt_no_decrease = 0
-            epoch_opt = 0
-            while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 5):
-                for batch_idx, batch in enumerate(data_loader):
-                    optimizer.zero_grad()
-                    loss = self.calc_loss(batch, batch_size, epsilon)
-                    # backpropagate
-                    loss.backward()
-                    optimizer.step()
-                epoch_opt += 1
-                # evaluate optimization iteration
-                cur_loss_opt = self.calc_loss(self.observations[:], len(self.observations), epsilon)
-                print(epoch_exp, "-", epoch_opt, "epoch, loss:", cur_loss_opt)
-                if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
-                    epochs_opt_no_decrease = 0
-                else:
-                    epochs_opt_no_decrease += 1
-                last_loss_opt = cur_loss_opt
-                epoch_opt += 1
-            # evaluate exploration iteration
-            if (last_loss_exp is None) or (last_loss_opt < last_loss_exp):
-                epochs_exp_no_decrease = 0
+            for batch_idx, batch in enumerate(data_loader):
+                optimizer.zero_grad()
+                loss = self.calc_loss(batch, batch_size, epsilon)
+                # backpropagate
+                loss.backward()
+                optimizer.step()
+            epoch_opt += 1
+            # evaluate optimization iteration
+            cur_loss_opt = self.calc_loss(self.observations[:], len(self.observations), epsilon)
+            if self.verbose: print("epoch:", epoch_opt, "of", max_epochs_opt, "with loss:", cur_loss_opt)
+
+            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+                epochs_opt_no_decrease = 0
             else:
-                epochs_exp_no_decrease += 1
-            last_loss_exp = last_loss_opt
-            epoch_exp += 1
+                epochs_opt_no_decrease += 1
+            last_loss_opt = cur_loss_opt
+            epoch_opt += 1
 
 def main():
     from environments.lqr import LQR
@@ -201,8 +197,8 @@ def main():
     policy_model = PolicyNormal([1, 3, 1])
     value_model = Simple()
 
-    agent = Agent(environment, policy_model, value_model)
-    agent.improve_values(1,timesteps=100)
+    agent = Agent(environment, policy_model, value_model, verbose=True)
+    agent.improve_values(episodes=1, timesteps=1000)
     #print([ p for p in agent.value_model.parameters()])
     agent.improve_policy()
 
