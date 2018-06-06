@@ -138,9 +138,9 @@ class Agent:
 
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                 epochs_opt_no_decrease = 0
+                last_loss_opt = cur_loss_opt
             else:
                 epochs_opt_no_decrease += 1
-            last_loss_opt = cur_loss_opt
             epoch_opt += 1
 
 def main():

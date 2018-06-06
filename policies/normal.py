@@ -3,6 +3,7 @@ from torch import Tensor
 import torch.optim as optim
 from torch.nn import functional as F
 from torch.distributions import Normal
+from torch.utils.data.dataloader import DataLoader
 
 from models.mlp import MLP
 from models.simple import Simple
@@ -11,8 +12,14 @@ from utils.loss import NormalPolicyLoss_1D
 class NormalPolicy():
     def __init__(self, initial_policy, layers, activation=F.relu):
         self.initial_policy = initial_policy
-        self.mu_net = Simple(activation)
-        self.sigma_net = Simple(activation)
+        self.mu_net = MLP(layers, activation)
+        self.sigma_net = MLP(layers, activation)
+
+    def get_mu(self, states):
+        return self.mu_net.forward(states)
+
+    def get_sigma(self, states):
+        return torch.ones(states.shape)*0.1
 
     def get_action(self, state):
         # random action if untrained
@@ -28,13 +35,9 @@ class NormalPolicy():
         m = torch.randn(1) * std_dev + mean
         return Tensor(m.data)
 
-    def get_mu(self, states):
-        return self.mu_net.forward(states)
-
-    def get_sigma(self, states):
-        return torch.ones(states.shape)*0.1
-
     def optimize(self, train_dataset, val_dataset, batch_size, learning_rate, verbose=False):
+        # init data loader
+        train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         # init optimizers
         optimizer_mu = optim.Adagrad(self.mu_net.parameters(), lr=learning_rate)
         optimizer_sigma = optim.Adagrad(self.sigma_net.parameters(), lr=learning_rate)
@@ -43,7 +46,7 @@ class NormalPolicy():
         epochs_opt_no_decrease = 0
         epoch_opt = 0
         while (epochs_opt_no_decrease < 5):
-            for batch_idx, batch in enumerate(train_dataset):
+            for batch_idx, batch in enumerate(train_data_loader):
                 optimizer_mu.zero_grad()
                 optimizer_sigma.zero_grad()
                 # forward pass
@@ -62,9 +65,9 @@ class NormalPolicy():
             if verbose: print("[policy] epoch:", epoch_opt+1, "| loss:", cur_loss_opt)
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                 epochs_opt_no_decrease = 0
+                last_loss_opt = cur_loss_opt
             else:
                 epochs_opt_no_decrease += 1
-            last_loss_opt = cur_loss_opt
             epoch_opt += 1
         # remove reliance on initial policy
         self.initial_policy = None
