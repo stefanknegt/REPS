@@ -5,6 +5,9 @@ import random
 import numpy as np
 from LQR_class import LQR
 
+import matplotlib
+import matplotlib.pyplot as plt
+
 class LQR_REPS_model:
     '''
     This is the REPS model for LQR, it uses a simple model to approximate the value function using a linear combination of theta1/2.
@@ -82,7 +85,7 @@ class LQR_REPS_model:
         end_states, rewards = self.env.get_reward(begin_states, actions)
         begin_states, actions, end_states, rewards = Variable(torch.from_numpy(begin_states).float()), Variable(torch.from_numpy(actions).float()), Variable(torch.from_numpy(end_states).float()), Variable(torch.from_numpy(rewards).float())
         weights = self.get_weights(begin_states, end_states, rewards)
-        self.plot_results(begin_states,actions,weights)
+        self.plot_results(begin_states,actions, weights)
 
     def value_back_prop_step(self, begin_states, end_states, rewards):
         N = len(begin_states)
@@ -101,9 +104,11 @@ class LQR_REPS_model:
 
     def policy_back_prop_step(self, begin_states, actions, weights):
         N = len(begin_states)
-        action_loss = actions - self.get_action(begin_states)
+
         #Calculate the loss according to the formula.
-        loss = torch.sum(torch.mul(action_loss ** 2, weights))
+        mu = self.mu1 * begin_states + self.mu2 * (begin_states ** 2)
+        log_likelihood = torch.log(self.sigma + 1e-6) + (actions - mu) ** 2 / (2 * (self.sigma ** 2))
+        loss = torch.sum(torch.mul(weights, log_likelihood)) / sum(weights) #we want to normalize for weights
 
         #Take optimizer step
         self.policy_optimizer.zero_grad()
@@ -119,10 +124,10 @@ class LQR_REPS_model:
             data['prev_state'] = self.env.state
 
             #This is a random action:
-            data['action'] = self.get_random_action()
+            #data['action'] = self.get_random_action()
 
             #This is a Normal distributed action, which can be learned!
-            #data['action'] = self.get_action(Variable(torch.tensor([data['prev_state']]).float())).item()
+            data['action'] = self.get_action(Variable(torch.tensor([data['prev_state']]).float())).item()
 
             data['new_state'], data['reward'] = self.env.step(data['action'])
             #Put the dict in a list:
@@ -137,6 +142,9 @@ class LQR_REPS_model:
             batch_data_DL = dict(zip(batch_data_LD[0],zip(*[d.values() for d in batch_data_LD]))) #dict of lists
 
             begin_states, end_states, rewards, actions = np.asarray(batch_data_DL['prev_state']), np.asarray(batch_data_DL['new_state']), np.asarray(batch_data_DL['reward']), np.asarray(batch_data_DL['action'])
+
+            print("Average rewards are now: ", sum(rewards) / len(rewards))
+
             begin_states, end_states, rewards, actions = Variable(torch.from_numpy(begin_states).float()), Variable(torch.from_numpy(end_states).float()), Variable(torch.from_numpy(rewards).float()), Variable(torch.from_numpy(actions).float())
 
             #Now we iteratively update the parameters to reduce the loss:
@@ -148,14 +156,14 @@ class LQR_REPS_model:
 
             print("Value loss -- Batch, avg_batch_loss: ", batch, batch_loss / steps_per_batch)
 
-            '''
             #Now we get the weights to update our policy:
             weights = self.get_weights(begin_states, end_states, rewards)
             for step in range(steps_per_batch):
                 step_loss = self.policy_back_prop_step(begin_states, actions, weights)
                 print("Mu1, mu2, sigma: ", self.mu1.item(), self.mu2.item(), self.sigma.item())
                 print("Policy loss -- Step, step_loss: ", step, step_loss)
-            '''
+
+        self.plot_grid_results()
 
 
 model = LQR_REPS_model(lr=0.01)
