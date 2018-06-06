@@ -11,14 +11,11 @@ class PolicyNormal():
         self.sigma_net = MLP(layers, activation)
 
     def get_action(self, state):
-        mean = self.mu_net.forward(state)
+        mean = self.get_mu(state)
         std_dev = self.get_sigma(state)
 
         m = Normal(mean, std_dev)
         return m.sample()
-
-    def parameters(self):
-        return [self.mu_net.parameters(), self.sigma_net.parameters()]
 
     def get_mu(self, states):
         return self.mu_net.forward(states)
