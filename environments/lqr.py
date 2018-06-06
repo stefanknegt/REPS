@@ -9,8 +9,8 @@ class LQR:
         #Initialize parameters for transistions and rewards:
         self.range_min = range_min
         self.range_max = range_max
-        self.C1 = 1#random.random()
-        self.C2 = 1#random.random()
+        self.C1 = 0.5#random.random()
+        self.C2 = 0.5#random.random()
         self.C3 = 1#random.random()
         self.C4 = 1#random.random()
 

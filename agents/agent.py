@@ -57,8 +57,8 @@ class Agent:
         cur_state = self.environment.state
         for t in range(episodes*timesteps):
             # reset environment
-            if t%timesteps == 0:
-                self.environment.reset()
+            if t % timesteps == 0:
+                cur_state = self.environment.reset()
             # perform action according to policy
             cur_action = self.get_action(Tensor([cur_state]))
             new_state, new_reward = self.environment.step(cur_action)
@@ -96,7 +96,7 @@ class Agent:
         """
         return torch.exp((rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta)
 
-    def improve_policy(self, learning_rate=1e-1, validation_ratio=0.1, batch_size=16):
+    def improve_policy(self, learning_rate=1e-1, validation_ratio=0.1, batch_size=100):
         prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
         actions = self.observations[:][:, 1].view(len(self.observations), 1)
         rewards = self.observations[:][:, 2].view(len(self.observations), 1)
@@ -161,9 +161,8 @@ class Agent:
         last_loss_exp = last_loss_opt
         epoch_exp += 1
 
-    def improve_values(self, max_epochs_opt=50, episodes=10, timesteps=50, batch_size=50, learning_rate=1e-2, epsilon=0.1):
+    def improve_values(self, max_epochs_opt=50, episodes=10, timesteps=10, batch_size=100, learning_rate=1e-2, epsilon=0.1):
         # sanity check
-        batch_size = min(timesteps, batch_size)
         # init optimizer
         optimizer = optim.Adagrad(self.value_model.parameters(), lr=learning_rate)
         # explore with timesteps/episode
@@ -180,7 +179,6 @@ class Agent:
                 # backpropagate
                 loss.backward()
                 optimizer.step()
-            epoch_opt += 1
             # evaluate optimization iteration
             cur_loss_opt = self.calc_loss(self.observations[:], len(self.observations), epsilon)
             if self.verbose: print("epoch:", epoch_opt, "of", max_epochs_opt, "with loss:", cur_loss_opt)
@@ -201,11 +199,11 @@ def main():
     random.seed(42)
 
     environment = LQR(-2, 2)
-    policy_model = PolicyNormal([1, 3, 1])
+    policy_model = PolicyNormal([1, 1])
     value_model = Simple()
 
     agent = Agent(environment, policy_model, value_model, verbose=True)
-    agent.improve_values(episodes=1, timesteps=1000)
+    agent.improve_values(episodes=1000, timesteps=50)
     #print([ p for p in agent.value_model.parameters()])
     agent.improve_policy()
 

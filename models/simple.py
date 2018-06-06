@@ -14,7 +14,7 @@ class Simple(torch.nn.Module):
         # for i in range(len(layers)-1):
         #     self.layers.append(torch.nn.Linear(layers[i], layers[i+1]))
         self.fc1 = torch.nn.Linear(2, 1, bias=None)
-        self.eta = torch.nn.Parameter(Tensor([0.1]))
+        self.eta = torch.nn.Parameter(Tensor([0.5]))
 
     def forward(self, x):
         """
