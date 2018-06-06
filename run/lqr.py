@@ -9,12 +9,14 @@ from agents.agent import Agent
 from environments.lqr import LQR
 from models.rand import Random
 from models.simple import Simple
+from models.policy_normal import PolicyNormal
 from utils.sars import SARSDataset
 
 random.seed(42)
 
 environment = LQR(-10, 10)
 policy_model = Random(-2, 2)
+policy_model = PolicyNormal([1,3,1])
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model)

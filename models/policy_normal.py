@@ -24,7 +24,7 @@ class PolicyNormal():
         return self.mu_net.forward(states)
 
     def get_sigma(self, states):
-        return torch.ones(states.shape)
+        return torch.ones(states.shape)*0.1
 
 if __name__ == '__main__':
     test = PolicyNormal([1,3,1])

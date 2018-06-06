@@ -1,4 +1,5 @@
 import torch
+from torch import Tensor
 import numpy as np
 
 def log_sum_exp(value):
@@ -30,7 +31,7 @@ def REPSLoss(epsilon, eta, vs_curr, vs_next, rewards):
     bell_error = bellman_error(eta, vs_curr, vs_next, rewards)
     lsm = log_sum_exp(bell_error)
 
-    return epsilon * eta + eta * torch.log(torch.Tensor([vs_curr.size(0)**(-1)])) + eta * lsm
+    return epsilon * eta - eta * torch.log(torch.Tensor([vs_curr.size(0)])) + eta * lsm
 
 
 def NormalPolicyLoss_1D(mu, sigma, actions, weights):
