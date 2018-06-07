@@ -15,5 +15,5 @@ class RandomPolicy(torch.nn.Module):
         return self.forward(state)
 
     def optimize(self, train_dataset, val_dataset, batch_size, learning_rate, verbose=False):
-        if verbose: print("hurr durr, I'm a random policy")
+        if verbose: print("[policy] hurr durr, I'm a random policy")
 

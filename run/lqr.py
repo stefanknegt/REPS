@@ -15,18 +15,17 @@ from utils.data import SARSDataset
 random.seed(42)
 
 environment = LQR(-10, 10)
-policy_model_random = RandomPolicy(-2, 2)
-policy_model_normal = NormalPolicy(policy_model_random)
-policy_model = policy_model_normal
+# policy_model = RandomPolicy(-2, 2)
+policy_model = NormalPolicy()
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
-for i in range(20):
+for i in range(10):
     # explore with timesteps/episode
     agent.explore(episodes=100, timesteps=10, remove_old=True)
     agent.improve_values(10, 10)
     agent.improve_policy()
-    print("Average reward:", agent.average_reward())
+    print("Average reward:", agent.get_avg_reward())
 
 state_space = np.arange(-2, 2.1, 0.1)
 action_space = np.arange(-2, 2.1, 0.1)
@@ -54,11 +53,3 @@ weights = agent.calc_weights(prev_states, new_states, rewards)
 sc = plt.scatter(prev_states.data, actions.data, c=weights.data)
 plt.colorbar(sc)
 plt.show()
-
-observations = []
-for state in state_space:
-    for action in action_space:
-        mu = agent.policy_model.get_mu(state)
-        sigma = agent.policy_model.mu_net.eta
-        from scipy.stats import norm
-        c = norm.pdf(action, )

@@ -40,7 +40,7 @@ class Agent:
         """
         return self.policy_model.get_action(state)
 
-    def average_reward(self):
+    def get_avg_reward(self):
         return (torch.mean(self.observations[:][:, 2])).data
 
     def explore(self, episodes, timesteps, remove_old=False):
@@ -60,7 +60,7 @@ class Agent:
             if t % timesteps == 0:
                 cur_state = self.environment.reset()
             # perform action according to policy
-            cur_action = Tensor(self.get_action(Tensor([cur_state])).data)
+            cur_action = self.get_action(torch.Tensor([cur_state]))
             new_state, new_reward = self.environment.step(cur_action)
             # save new observation
             new_observations.append({
