@@ -14,16 +14,16 @@ from utils.data import SARSDataset
 
 random.seed(42)
 
-environment = LQR(-10, 10)
+environment = LQR(-1, 1)
 policy_model_random = RandomPolicy(-2, 2)
-policy_model_normal = NormalPolicy(policy_model_random)
+policy_model_normal = NormalPolicy()
 policy_model = policy_model_normal
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
-for i in range(20):
+for i in range(10):
     # explore with timesteps/episode
-    agent.explore(episodes=100, timesteps=10, remove_old=True)
+    agent.explore(episodes=100, timesteps=50, remove_old=True)
     agent.improve_values(10, 10)
     agent.improve_policy()
     print("Average reward:", agent.average_reward())
@@ -36,7 +36,7 @@ observations = []
 for state in state_space:
     for action in action_space:
         environment.state = state
-        new_state, reward = environment.step(action)
+        new_state, reward, _, _ = environment.step(action)
         observations.append({
             'prev_state': state,
             'action': action,

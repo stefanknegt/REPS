@@ -10,10 +10,9 @@ from models.simple import Simple
 from utils.loss import NormalPolicyLoss_1D
 
 class NormalPolicy():
-    def __init__(self, initial_policy, activation=F.relu):
-        self.initial_policy = initial_policy
-        self.mu_net = Simple(activation)
-        self.mu_net.fc1.weight.data = Tensor([[0, 0]])
+    def __init__(self, input_size=1, activation=F.relu):
+        self.mu_net = Simple(input_size=input_size, activation=activation)
+        self.mu_net.fc1.weight.data = torch.zeros(self.mu_net.fc1.weight.data.shape)
 
     def get_mu(self, states):
         return self.mu_net.forward(states)
@@ -68,5 +67,3 @@ class NormalPolicy():
             epoch_opt += 1
         print("Thetas:", self.mu_net.fc1.weight.data.data, "sigma: ", self.mu_net.eta.data)
 
-        # remove reliance on initial policy
-        self.initial_policy = None

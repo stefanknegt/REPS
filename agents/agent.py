@@ -54,14 +54,14 @@ class Agent:
         # initialize exploration
         if self.verbose: print("exploring", episodes, "with", timesteps, "timesteps each")
         new_observations = []
-        cur_state = self.environment.state
+        cur_state = self.environment.reset()
         for t in range(episodes*timesteps):
             # reset environment
             if t % timesteps == 0:
                 cur_state = self.environment.reset()
             # perform action according to policy
-            cur_action = Tensor(self.get_action(Tensor([cur_state])).data)
-            new_state, new_reward = self.environment.step(cur_action)
+            cur_action = self.get_action(Tensor([cur_state])).squeeze().numpy()
+            new_state, new_reward, done, info = self.environment.step(cur_action)
             # save new observation
             new_observations.append({
                     'prev_state': cur_state,

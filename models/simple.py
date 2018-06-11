@@ -2,12 +2,13 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
+
 class Simple(torch.nn.Module):
-    def __init__(self, activation=F.tanh):
+    def __init__(self, input_size=1, activation=F.tanh):
         super(Simple, self).__init__()
         self.layers = []
         self.activation = activation
-        self.fc1 = torch.nn.Linear(2, 1, bias=None)
+        self.fc1 = torch.nn.Linear(input_size * 2, 1, bias=None)
         self.eta = torch.nn.Parameter(Tensor([1]))
 
     def forward(self, x):
