@@ -10,8 +10,8 @@ class LQR:
         self.boundary = 20
 
         #Initialize parameters for transistions and rewards:
-        self.C1 = 0.6 #random.random()
-        self.C2 = 0.3 #random.random()
+        self.C1 = 0.5 #random.random()
+        self.C2 = 0.5 #random.random()
         self.C3 = 0.8 #random.random()
         self.C4 = 0.8 #random.random()
 
