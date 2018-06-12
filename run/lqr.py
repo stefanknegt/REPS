@@ -21,12 +21,7 @@ policy_model = policy_model_normal
 value_model = Simple()
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
-for i in range(10):
-    # explore with timesteps/episode
-    agent.explore(episodes=100, timesteps=50, remove_old=True)
-    agent.improve_values(10, 10)
-    agent.improve_policy()
-    print("Average reward:", agent.average_reward())
+agent.run_reps()
 
 state_space = np.arange(-2, 2.1, 0.1)
 action_space = np.arange(-2, 2.1, 0.1)

@@ -40,6 +40,7 @@ class NormalPolicy():
         # init optimizers
         optimizer_mu = optim.Adagrad(self.mu_net.parameters(), lr=learning_rate)
         # train on batches
+        best_model = None
         last_loss_opt = None
         epochs_opt_no_decrease = 0
         epoch_opt = 0
@@ -60,10 +61,12 @@ class NormalPolicy():
             # evaluate optimization iteration
             if verbose: print("[policy] epoch:", epoch_opt+1, "| loss:", cur_loss_opt)
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+                best_model = self.mu_net.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = cur_loss_opt
             else:
                 epochs_opt_no_decrease += 1
             epoch_opt += 1
-        print("Thetas:", self.mu_net.fc1.weight.data.data, "sigma: ", self.mu_net.eta.data)
+        self.mu_net.load_state_dict(best_model)
+        if verbose: print("[policy] Thetas:", self.mu_net.fc1.weight.data.data, "sigma: ", self.mu_net.eta.data)
 

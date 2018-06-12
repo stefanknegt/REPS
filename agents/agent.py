@@ -38,30 +38,35 @@ class Agent:
         :param state: appropriate representation of the current state
         :return appriate action representation
         """
-        return self.policy_model.get_action(state)
+        state = Tensor([state])
+        action_tensor = self.policy_model.get_action(state)
+        action_array = action_tensor.squeeze().numpy()
+        return action_array
 
     def average_reward(self):
-        return (torch.mean(self.observations[:][:, 2])).data
+        return torch.mean(self.observations[:][:, 2])
 
-    def explore(self, episodes, timesteps, remove_old=False):
+    def explore(self, episodes, timesteps, remove_old):
         """
         Explore the environment for t timesteps.
 
         :param episodes (int): number of episodes to explore
         :param timesteps (int): number of timesteps per episode
+        :param remove_old (bool): flag determining whether to keep the old observations
         :return newly collected observations
         """
         # initialize exploration
-        if self.verbose: print("exploring", episodes, "with", timesteps, "timesteps each")
         new_observations = []
+        episode_done = False
         cur_state = self.environment.reset()
+
         for t in range(episodes*timesteps):
             # reset environment
-            if t % timesteps == 0:
+            if (t % timesteps == 0) or episode_done:
                 cur_state = self.environment.reset()
             # perform action according to policy
-            cur_action = self.get_action(Tensor([cur_state])).squeeze().numpy()
-            new_state, new_reward, done, info = self.environment.step(cur_action)
+            cur_action = self.get_action(cur_state)
+            new_state, new_reward, episode_done, info = self.environment.step(cur_action)
             # save new observation
             new_observations.append({
                     'prev_state': cur_state,
@@ -70,21 +75,25 @@ class Agent:
                     'new_state':new_state})
             # iterate
             cur_state = new_state
+
+        # check for adding mode
         if remove_old:
             self.observations = SARSDataset(new_observations)
         else:
             self.observations.append(new_observations)
-        if self.verbose: print("added", len(new_observations), "observations ( total", len(self.observations), ")")
+
+        if self.verbose: print("[explore] added", len(new_observations), "observations ( total", len(self.observations), ")")
         return new_observations
 
     def calc_loss(self, batch, batch_size, epsilon):
         # forward pass
-        prev_states = batch[:,0].view(batch_size, 1)
-        new_states = batch[:,3].view(batch_size, 1)
+        prev_states = batch[:, 0].view(batch_size, 1)
+        new_states = batch[:, 3].view(batch_size, 1)
         prev_value_predictions = self.value_model(prev_states)
         new_value_predictions = self.value_model(new_states)
+
         # calculate loss
-        rewards = batch[:,2].view(batch_size, 1)
+        rewards = batch[:, 2].view(batch_size, 1)
         return REPSLoss(epsilon, self.value_model.eta, prev_value_predictions, new_value_predictions, rewards)
 
     def calc_weights(self, prev_states, new_states, rewards):
@@ -96,15 +105,17 @@ class Agent:
         :param rewards (Tensor): rewards
         :return tensor containing weights of state pairs
         """
+        # TODO: use exp trick to avoid numerical instability
         return torch.exp((rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta)
 
-    def improve_policy(self, learning_rate=5e-2, val_ratio=0.1, batch_size=100):
+    def improve_policy(self, learning_rate, val_ratio, batch_size):
         # load datasets
         prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
         actions = self.observations[:][:, 1].view(len(self.observations), 1)
         rewards = self.observations[:][:, 2].view(len(self.observations), 1)
         new_states = self.observations[:][:, 3].view(len(self.observations), 1)
         weights = self.calc_weights(prev_states, new_states, rewards)
+
         # prepare training and validation splits
         observation_size = weights.size()[0]
         val_size = round(val_ratio*observation_size)
@@ -112,23 +123,25 @@ class Agent:
         train_dataset = torch.utils.data.TensorDataset(
             prev_states[val_size:],
             actions[val_size:],
-            torch.FloatTensor(weights.data[val_size:]))
+            torch.Tensor(weights.data[val_size:]))
         val_dataset = [
             prev_states[:val_size - 1],
             actions[:val_size - 1],
             weights[:val_size - 1]]
+
         # optimize
         self.policy_model.optimize(train_dataset, val_dataset, batch_size, learning_rate, verbose=self.verbose)
 
-    def improve_values(self, max_epochs_opt=50, batch_size=100, learning_rate=1e-2, epsilon=0.1):
+    def improve_values(self, max_epochs_opt, batch_size, learning_rate, epsilon):
         # init optimizer
         optimizer = optim.Adagrad(self.value_model.parameters(), lr=learning_rate)
         # train on observation batches
         data_loader = DataLoader(self.observations, batch_size=batch_size, shuffle=True, num_workers=4)
+        best_model = None
         last_loss_opt = None
         epochs_opt_no_decrease = 0
         epoch_opt = 0
-        while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 5):
+        while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 3):
             for batch_idx, batch in enumerate(data_loader):
                 optimizer.zero_grad()
                 loss = self.calc_loss(batch, batch_size, epsilon)
@@ -140,11 +153,23 @@ class Agent:
             if self.verbose: print("[value] epoch:", epoch_opt+1, "/", max_epochs_opt, "| loss:", cur_loss_opt)
 
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+                best_model = self.value_model.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = cur_loss_opt
             else:
                 epochs_opt_no_decrease += 1
             epoch_opt += 1
+        # use best previously found model
+        self.value_model.load_state_dict(best_model)
+
+    def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True,
+                 val_epochs=50, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
+                 pol_lr=5e-2, pol_val_ratio=.1, pol_batch_size=100):
+        for i in range(iterations):
+            self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old)
+            self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
+            self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=val_batch_size)
+            if self.verbose: print("[reps] iteration", i, "/ average reward:", self.average_reward().data)
 
 def main():
     from environments.lqr import LQR
