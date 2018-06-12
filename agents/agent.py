@@ -41,7 +41,7 @@ class Agent:
         """
         state = Tensor([state])
         action_tensor = self.policy_model.get_action(state)
-        action_array = action_tensor.squeeze().numpy()
+        action_array = action_tensor[0].numpy()
         return action_array
 
     def average_reward(self):
@@ -68,7 +68,7 @@ class Agent:
             # perform action according to policy
             cur_action = self.get_action(cur_state)
             self.environment.render()
-            new_state, new_reward, episode_done, info = self.environment.step(np.array([cur_action]))
+            new_state, new_reward, episode_done, info = self.environment.step(cur_action)
             # save new observation
             new_observations.append({
                     'prev_state': cur_state,
