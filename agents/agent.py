@@ -1,4 +1,5 @@
 import sys, os
+import numpy as np
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from utils.data import SARSDataset
@@ -44,7 +45,7 @@ class Agent:
         return action_array
 
     def average_reward(self):
-        return torch.mean(self.observations[:][:, 2])
+        return torch.mean(self.observations[:][2])
 
     def explore(self, episodes, timesteps, remove_old):
         """
@@ -66,14 +67,15 @@ class Agent:
                 cur_state = self.environment.reset()
             # perform action according to policy
             cur_action = self.get_action(cur_state)
-            new_state, new_reward, episode_done, info = self.environment.step(cur_action)
+            self.environment.render()
+            new_state, new_reward, episode_done, info = self.environment.step(np.array([cur_action]))
             # save new observation
             new_observations.append({
                     'prev_state': cur_state,
                     'action': cur_action,
                     'reward': new_reward,
-                    'new_state':new_state})
-            # iterate
+                    'new_state': new_state})
+            # iterate:,
             cur_state = new_state
 
         # check for adding mode
@@ -87,13 +89,13 @@ class Agent:
 
     def calc_loss(self, batch, batch_size, epsilon):
         # forward pass
-        prev_states = batch[:, 0].view(batch_size, 1)
-        new_states = batch[:, 3].view(batch_size, 1)
+        prev_states = batch[0]
+        new_states = batch[3]
         prev_value_predictions = self.value_model(prev_states)
         new_value_predictions = self.value_model(new_states)
 
         # calculate loss
-        rewards = batch[:, 2].view(batch_size, 1)
+        rewards = batch[2]
         return REPSLoss(epsilon, self.value_model.eta, prev_value_predictions, new_value_predictions, rewards)
 
     def calc_weights(self, prev_states, new_states, rewards):
@@ -110,10 +112,10 @@ class Agent:
 
     def improve_policy(self, learning_rate, val_ratio, batch_size):
         # load datasets
-        prev_states = self.observations[:][:, 0].view(len(self.observations), 1)
-        actions = self.observations[:][:, 1].view(len(self.observations), 1)
-        rewards = self.observations[:][:, 2].view(len(self.observations), 1)
-        new_states = self.observations[:][:, 3].view(len(self.observations), 1)
+        prev_states = self.observations[:][0]
+        actions = self.observations[:][1]
+        rewards = self.observations[:][2]
+        new_states = self.observations[:][3]
         weights = self.calc_weights(prev_states, new_states, rewards)
 
         # prepare training and validation splits
@@ -169,7 +171,7 @@ class Agent:
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old)
             self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
             self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=val_batch_size)
-            if self.verbose: print("[reps] iteration", i, "/ average reward:", self.average_reward().data)
+            if self.verbose: print("[reps] iteration", i+1, "/", iterations, "| average reward:", self.average_reward().data)
 
 def main():
     from environments.lqr import LQR

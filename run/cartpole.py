@@ -13,23 +13,18 @@ from policies.normal import NormalPolicy
 from utils.data import SARSDataset
 
 import gym
+from torch.nn import functional as F
 
 random.seed(42)
 
-environment = gym.make("InvertedPendulum-v2")
+environment = gym.make("MountainCarContinuous-v0")
 
-policy_model_random = RandomPolicy(-2, 2)
-policy_model_normal = NormalPolicy(input_size=4)
+policy_model_normal = NormalPolicy(input_size=2)
 policy_model = policy_model_normal
-value_model = Simple(input_size=4)
+value_model = Simple(input_size=2)
 
 agent = Agent(environment, policy_model, value_model, verbose=True)
-for i in range(10):
-    # explore with timesteps/episode
-    agent.explore(episodes=100, timesteps=50, remove_old=True)
-    agent.improve_values(10, 10)
-    agent.improve_policy()
-    print("Average reward:", agent.average_reward())
+agent.run_reps(10,exp_timesteps=2000, exp_episodes=10)
 
 state_space = np.arange(-2, 2.1, 0.1)
 action_space = np.arange(-2, 2.1, 0.1)

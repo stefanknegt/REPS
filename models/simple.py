@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 
 class Simple(torch.nn.Module):
-    def __init__(self, input_size=1, activation=F.tanh):
+    def __init__(self, input_size=1, activation=None):
         super(Simple, self).__init__()
         self.layers = []
         self.activation = activation
@@ -14,6 +14,8 @@ class Simple(torch.nn.Module):
     def forward(self, x):
         x = torch.cat((x, x**2), 1)
         x = self.fc1(x)
+        if self.activation is not None:
+            x = self.activation(x)
         return x
 
 

@@ -10,7 +10,7 @@ from models.simple import Simple
 from utils.loss import NormalPolicyLoss_1D
 
 class NormalPolicy():
-    def __init__(self, input_size=1, activation=F.relu):
+    def __init__(self, input_size=1, activation=None):
         self.mu_net = Simple(input_size=input_size, activation=activation)
         self.mu_net.fc1.weight.data = torch.zeros(self.mu_net.fc1.weight.data.shape)
 

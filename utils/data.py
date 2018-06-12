@@ -23,9 +23,9 @@ class SARSDataset(Dataset):
 
     def __getitem__(self, idx):
         if isinstance(idx, slice):
-            return torch.cat((self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx]), dim=1)
+            return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx]
         else:
-            return torch.cat((self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx]), dim=0)
+            return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx]
 
     def _dict_to_tensor(self, sars_data, key):
         if len(sars_data) < 1:
