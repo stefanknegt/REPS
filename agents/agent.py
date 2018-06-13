@@ -69,8 +69,7 @@ class Agent:
             cur_action = self.get_action(cur_state)
 
             # self.environment.render()
-            new_state, new_reward, episode_done, info = self.environment.step(np.array([cur_action]))
-
+            new_state, new_reward, episode_done, info = self.environment.step(cur_action)
 
             # save new observation
             new_observations.append({
@@ -170,7 +169,7 @@ class Agent:
 
     def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True,
                  val_epochs=100, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
-                 pol_lr=1e-3, pol_val_ratio=.1, pol_batch_size=100):
+                 pol_lr=1e-2, pol_val_ratio=.1, pol_batch_size=100):
         for i in range(iterations):
             self.policy_model.sigma = Tensor([(10-i)/10])
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old)
