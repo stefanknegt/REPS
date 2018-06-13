@@ -1,3 +1,5 @@
+import sys
+
 import torch
 from torch import Tensor
 import torch.optim as optim
@@ -63,8 +65,11 @@ class NormalPolicy():
             sigma = self.get_sigma(val_dataset[0])
             cur_loss_opt = NormalPolicyLoss_1D(mu, sigma, val_dataset[1], val_dataset[2])
             # evaluate optimization iteration
-            if verbose: print("[policy] epoch:", epoch_opt+1, "| loss:", cur_loss_opt)
-            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt - 1e-3):
+
+            if verbose:
+                sys.stdout.write('\r[policy] epoch: %d | loss: %f' % (epoch_opt+1, cur_loss_opt))
+                sys.stdout.flush()
+            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                 best_model = self.mu_net.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = cur_loss_opt
@@ -72,5 +77,6 @@ class NormalPolicy():
                 epochs_opt_no_decrease += 1
             epoch_opt += 1
         self.mu_net.load_state_dict(best_model)
+        if verbose: sys.stdout.write('\r[policy] training complete (%d epochs, %f best loss)' % (epoch_opt, last_loss_opt) + (' ' * (len(str(epoch_opt)))*2 + '\n'))
         # if verbose: print("[policy] Thetas:", self.mu_net.fc1.weight.data.data, "sigma: ", self.mu_net.eta.data)
 

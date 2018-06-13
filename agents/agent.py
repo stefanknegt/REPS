@@ -47,7 +47,7 @@ class Agent:
     def average_reward(self):
         return torch.mean(self.observations[:][2])
 
-    def explore(self, episodes, timesteps, remove_old):
+    def explore(self, episodes, timesteps, remove_old, render):
         """
         Explore the environment for t timesteps.
 
@@ -68,7 +68,9 @@ class Agent:
             # perform action according to policy
             cur_action = self.get_action(cur_state)
 
-            self.environment.render()
+
+            if render: self.environment.render()
+
             new_state, new_reward, episode_done, info = self.environment.step(cur_action)
 
             # save new observation
@@ -155,7 +157,9 @@ class Agent:
                 optimizer.step()
             # evaluate optimization iteration
             cur_loss_opt = self.calc_loss(self.observations[:], len(self.observations), epsilon)
-            if self.verbose: print("[value] epoch:", epoch_opt+1, "/", max_epochs_opt, "| loss:", cur_loss_opt)
+            if self.verbose:
+                sys.stdout.write('\r[value] epoch: %d / %d | loss: %f' % (epoch_opt+1, max_epochs_opt, cur_loss_opt))
+                sys.stdout.flush()
 
             if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
                 best_model = self.value_model.state_dict()
@@ -166,12 +170,14 @@ class Agent:
             epoch_opt += 1
         # use best previously found model
         self.value_model.load_state_dict(best_model)
+        if self.verbose: sys.stdout.write('\r[value] training complete (%d epochs, %f best loss)' % (max_epochs_opt, last_loss_opt) + (' ' * (len(str(max_epochs_opt)))*2 + '\n'))
 
-    def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True,
+
+    def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True, exp_render=False,
                  val_epochs=50, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
                  pol_lr=1e-2, pol_val_ratio=.1, pol_batch_size=100):
         for i in range(iterations):
-            self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old)
+            self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old, render=exp_render)
             self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
             self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=pol_batch_size)
             if self.verbose: print("[reps] iteration", i+1, "/", iterations, "| average reward:", self.average_reward().data)

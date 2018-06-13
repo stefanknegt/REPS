@@ -16,7 +16,7 @@ random.seed(42)
 
 environment = LQR(-1, 1)
 policy_model_random = RandomPolicy(-2, 2)
-policy_model_normal = NormalPolicy()
+policy_model_normal = NormalPolicy([1, 9, 1], 1.)
 policy_model = policy_model_normal
 value_model = Simple()
 
