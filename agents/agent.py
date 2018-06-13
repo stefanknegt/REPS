@@ -68,7 +68,7 @@ class Agent:
             # perform action according to policy
             cur_action = self.get_action(cur_state)
 
-            # self.environment.render()
+            self.environment.render()
             new_state, new_reward, episode_done, info = self.environment.step(cur_action)
 
             # save new observation
@@ -168,10 +168,9 @@ class Agent:
         self.value_model.load_state_dict(best_model)
 
     def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True,
-                 val_epochs=100, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
+                 val_epochs=50, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
                  pol_lr=1e-2, pol_val_ratio=.1, pol_batch_size=100):
         for i in range(iterations):
-            self.policy_model.sigma = Tensor([(10-i)/10])
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old)
             self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
             self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=pol_batch_size)

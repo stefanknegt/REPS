@@ -10,8 +10,8 @@ from models.simple import Simple
 from utils.loss import NormalPolicyLoss_1D
 
 class NormalPolicy():
-    def __init__(self, layers, sigma):
-        self.mu_net = MLP(layers)
+    def __init__(self, layers, sigma, activation=F.relu):
+        self.mu_net = MLP(layers, activation)
         self.sigma = Tensor([sigma])
 
         # self.mu_net.fc1.weight.data = torch.zeros(self.mu_net.fc1.weight.data.shape)
@@ -64,7 +64,7 @@ class NormalPolicy():
             cur_loss_opt = NormalPolicyLoss_1D(mu, sigma, val_dataset[1], val_dataset[2])
             # evaluate optimization iteration
             if verbose: print("[policy] epoch:", epoch_opt+1, "| loss:", cur_loss_opt)
-            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt - 1e-3):
                 best_model = self.mu_net.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = cur_loss_opt
