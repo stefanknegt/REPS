@@ -20,7 +20,6 @@ class LQR:
     def step(self, action):
         #We calculate the new state using the parameters:
         self.state = self.C3 * self.state + self.C4 * action
-
         # self.state = max([self.state, self.range_min])
         # self.state = min([self.state, self.range_max])
 

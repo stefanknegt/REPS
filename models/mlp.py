@@ -26,6 +26,7 @@ class MLP(torch.nn.Module):
             x = self.activation(self.layers[i](x))
         "Last layer without activation (no output domain restriction)"
         x = self.layers[-1](x)
+        x = self.activation(x)
         return x
 
 

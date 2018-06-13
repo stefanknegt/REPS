@@ -9,12 +9,12 @@ from torch.utils.data.dataloader import DataLoader
 
 from models.mlp import MLP
 from models.simple import Simple
-from utils.loss import NormalPolicyLoss_1D
+from utils.loss import NormalPolicyLoss
 
 class NormalPolicy():
     def __init__(self, layers, sigma, activation=F.relu):
         self.mu_net = MLP(layers, activation)
-        self.sigma = Tensor([sigma])
+        self.sigma = torch.nn.Parameter(Tensor(sigma))
 
         # self.mu_net.fc1.weight.data = torch.zeros(self.mu_net.fc1.weight.data.shape)
         # self.mu_net.eta.data = torch.ones(1) * 2
@@ -43,7 +43,7 @@ class NormalPolicy():
         # init data loader
         train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         # init optimizers
-        optimizer_mu = optim.Adagrad(self.mu_net.parameters(), lr=learning_rate)
+        optimizer_mu = optim.Adagrad([{'params': self.mu_net.parameters()}, {'params':self.sigma, 'lr': 1e-3}], lr=learning_rate)
         # train on batches
         best_model = None
         last_loss_opt = None
@@ -56,14 +56,14 @@ class NormalPolicy():
                 # forward pass
                 mu = self.mu_net(batch[0])
                 sigma = self.get_sigma(batch[0])
-                loss = NormalPolicyLoss_1D(mu, sigma, batch[1], batch[2])
+                loss = NormalPolicyLoss(mu, sigma, batch[1], batch[2])
                 # backpropagate
                 loss.backward()
                 optimizer_mu.step()
             # calculate loss on validation data
             mu = self.get_mu(val_dataset[0])
             sigma = self.get_sigma(val_dataset[0])
-            cur_loss_opt = NormalPolicyLoss_1D(mu, sigma, val_dataset[1], val_dataset[2])
+            cur_loss_opt = NormalPolicyLoss(mu, sigma, val_dataset[1], val_dataset[2])
             # evaluate optimization iteration
 
             if verbose:

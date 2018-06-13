@@ -180,6 +180,7 @@ class Agent:
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old, render=exp_render)
             self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
             self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=pol_batch_size)
+            print(self.policy_model.sigma)
             if self.verbose: print("[reps] iteration", i+1, "/", iterations, "| average reward:", self.average_reward().data)
 
 def main():
