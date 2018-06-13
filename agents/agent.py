@@ -67,7 +67,7 @@ class Agent:
                 cur_state = self.environment.reset()
             # perform action according to policy
             cur_action = self.get_action(cur_state)
-            self.environment.render()
+            # self.environment.render()
             new_state, new_reward, episode_done, info = self.environment.step(np.array([cur_action]))
             # save new observation
             new_observations.append({
@@ -108,7 +108,8 @@ class Agent:
         :return tensor containing weights of state pairs
         """
         # TODO: use exp trick to avoid numerical instability
-        return torch.exp((rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta)
+        norm_bellman_error = (rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta
+        return torch.exp(norm_bellman_error - torch.max(norm_bellman_error))
 
     def improve_policy(self, learning_rate, val_ratio, batch_size):
         # load datasets
@@ -165,12 +166,13 @@ class Agent:
         self.value_model.load_state_dict(best_model)
 
     def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True,
-                 val_epochs=50, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
-                 pol_lr=5e-2, pol_val_ratio=.1, pol_batch_size=100):
+                 val_epochs=100, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
+                 pol_lr=1e-3, pol_val_ratio=.1, pol_batch_size=100):
         for i in range(iterations):
+            self.policy_model.sigma = Tensor([(10-i)/10])
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old)
             self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
-            self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=val_batch_size)
+            self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=pol_batch_size)
             if self.verbose: print("[reps] iteration", i+1, "/", iterations, "| average reward:", self.average_reward().data)
 
 def main():

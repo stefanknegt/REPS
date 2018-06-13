@@ -11,6 +11,7 @@ class MLP(torch.nn.Module):
         super(MLP, self).__init__()
         self.layers = []
         self.activation = activation
+        self.eta = torch.nn.Parameter(Tensor([1]))
         for i in range(len(layers)-1):
             self.layers.append(torch.nn.Linear(layers[i], layers[i+1]))
         self.layers = torch.nn.ModuleList(self.layers)
