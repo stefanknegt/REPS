@@ -1,5 +1,6 @@
 import torch
 from torch import Tensor
+from torch.distributions.normal import Normal
 import numpy as np
 
 def log_sum_exp(value):
@@ -49,3 +50,7 @@ def NormalPolicyLoss_1D(mu, sigma, actions, weights):
     return loss
 
 
+def WeightedLogLikelihoodLoss(dist, actions, weights):
+    log_prob = dist.log_prob(actions)
+    loss = -1.0 * torch.sum(torch.mul(weights.squeeze(), log_prob.squeeze())) / torch.sum(weights)
+    return loss
