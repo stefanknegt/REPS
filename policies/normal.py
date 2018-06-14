@@ -10,11 +10,12 @@ from torch.utils.data.dataloader import DataLoader
 from models.mlp import MLP
 from models.simple import Simple
 from utils.loss import NormalPolicyLoss
+from utils.loss import NormalPolicyLoss_1D
 
 class NormalPolicy():
     def __init__(self, layers, sigma, activation=F.relu):
         self.mu_net = MLP(layers, activation)
-        self.sigma = torch.nn.Parameter(Tensor(sigma))
+        self.sigma = MLP(layers, activation=F.softplus)
 
         # self.mu_net.fc1.weight.data = torch.zeros(self.mu_net.fc1.weight.data.shape)
         # self.mu_net.eta.data = torch.ones(1) * 2
@@ -23,7 +24,7 @@ class NormalPolicy():
         return self.mu_net.forward(states)
 
     def get_sigma(self, states):
-        return self.sigma
+        return self.sigma.forward(states)
 
     def get_action(self, state):
         # random action if untrained
@@ -36,14 +37,14 @@ class NormalPolicy():
         std_dev = self.get_sigma(state)
         mean.squeeze()
         std_dev.squeeze()
-        m = torch.randn(1) * std_dev + mean
+        m = torch.normal(mean, std_dev)
         return m.data
 
     def optimize(self, train_dataset, val_dataset, batch_size, learning_rate, verbose=False):
         # init data loader
         train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         # init optimizers
-        optimizer_mu = optim.Adagrad([{'params': self.mu_net.parameters()}, {'params':self.sigma, 'lr': 1e-3}], lr=learning_rate)
+        optimizer_mu = optim.Adagrad([{'params': self.mu_net.parameters()}, {'params':self.sigma.parameters()}], lr=learning_rate)
         # train on batches
         best_model = None
         last_loss_opt = None
@@ -69,7 +70,7 @@ class NormalPolicy():
             if verbose:
                 sys.stdout.write('\r[policy] epoch: %d | loss: %f' % (epoch_opt+1, cur_loss_opt))
                 sys.stdout.flush()
-            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
+            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt - 1e-3):
                 best_model = self.mu_net.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = cur_loss_opt
