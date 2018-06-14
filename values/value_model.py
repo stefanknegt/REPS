@@ -5,17 +5,17 @@ from torch.autograd import Variable
 import torch.functional as F
 import torch.nn.functional as F
 import numpy as np
-from utils import *
+from utils.data import *
 import random
 
-class Value(nn.module):
-    def __init__(self, state_dim, hidden_dim, value_range, eta, epsilon):
+class Value(nn.Module):
+    def __init__(self, state_dim, hidden_dim, value_range, eta, epsilon, lr):
         super(Value, self).__init__()
-        self.input_dim = state_dim
+        self.state_dim = state_dim
         self.hidden_dim = hidden_dim
 
         #MLP for the value network
-        self.value_hidden_weights = Variable(value_range / 2 - value_range * torch.rand(self.hidden_dim, self.input_dim), requires_grad=True)
+        self.value_hidden_weights = Variable(value_range / 2 - value_range * torch.rand(self.hidden_dim, self.state_dim), requires_grad=True)
         self.value_hidden_bias = Variable(value_range / 2 - value_range * torch.rand(self.hidden_dim, 1), requires_grad=True)
         self.value_out_weights = Variable(value_range / 2 - value_range * torch.rand(1, self.hidden_dim), requires_grad=True)
         self.value_out_bias = Variable(value_range / 2 - value_range * torch.rand(1, 1), requires_grad=True)
@@ -24,8 +24,8 @@ class Value(nn.module):
         #Epsilon is the maximum KL divergence term, which is supposed to work well at 0.1.
         self.epsilon = epsilon
 
-        #Initialize the adam optimizer and set its learning rate.
-        self.value_optimizer = torch.optim.Adam(self.parameters(), lr = lr)
+        self.value_optimizer = torch.optim.SGD([self.value_hidden_weights, self.value_hidden_bias, self.value_out_weights, self.value_out_bias, self.eta], lr = lr)
+
 
     def get_value(self, states):
         '''

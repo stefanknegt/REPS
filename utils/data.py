@@ -2,6 +2,8 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset
+import torch.nn.functional as F
+import sys
 
 class SARSDataset(Dataset):
     """
@@ -62,3 +64,32 @@ class SARSDataset(Dataset):
             self.actions = torch.cat((self.actions, self._dict_to_tensor(sars_data, 'action')), dim=0)
             self.rewards = torch.cat((self.rewards, self._dict_to_tensor(sars_data, 'reward')), dim=0)
             self.new_states = torch.cat((self.new_states, self._dict_to_tensor(sars_data, 'new_state')), dim=0)
+
+
+def logsumexponent(term,N):
+    '''
+    This is a trick to avoid overflow in the log.
+    '''
+    max_val = torch.max(term)
+    term_corrected = term - max_val
+    sumOfExp = torch.sum(torch.exp(term_corrected) / N)
+    return max_val + torch.log(sumOfExp)
+
+def check_values(*args,**kwargs):
+    "Function to check where NaN values arise"
+    nan=False
+    for k,v in kwargs.items():
+        if type(v) is np.ndarray:
+            if np.isnan(v.any()):
+                print("NAN DETECTED FOR:",k)
+                nan=True
+        else:
+            if torch.isnan(torch.sum(v)):
+                print("NAN DETECTED FOR:",k)
+                nan=True
+
+    if nan == True:
+        for k,v in kwargs.items():
+            print(k,v)
+        sys.exit()
+    return 0
