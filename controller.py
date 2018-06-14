@@ -1,6 +1,6 @@
 from utils.data import *
-from values.value_model import Value
-from policies.policy_model import Policy
+from values.value_model import ValueModel
+from policies.policy_model import PolicyModel
 
 import gym
 import random
@@ -141,7 +141,7 @@ class Controller:
 
     def optimize_model(self, model, train_obs, val_obs, max_epochs_opt, batch_size):
         # check model type
-        mode = 'value' if isinstance(model, Value) else 'policy'
+        mode = 'value' if isinstance(model, ValueModel) else 'policy'
         # train on observation batches
         data_loader = DataLoader(train_obs, batch_size=batch_size, shuffle=True, num_workers=4)
         best_model = None
