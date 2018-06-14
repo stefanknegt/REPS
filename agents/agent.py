@@ -67,11 +67,8 @@ class Agent:
                 cur_state = self.environment.reset()
             # perform action according to policy
             cur_action = self.get_action(cur_state)
-
-
-            if render: self.environment.render()
-
             new_state, new_reward, episode_done, info = self.environment.step(cur_action)
+            if render: self.environment.render()
 
             # save new observation
             new_observations.append({
@@ -88,7 +85,7 @@ class Agent:
         else:
             self.observations.append(new_observations)
 
-        if self.verbose: print("[explore] added", len(new_observations), "observations ( total", len(self.observations), ")")
+        if self.verbose: print("[explore] added", len(new_observations), "observations ( total", len(self.observations), ") | average reward:", float(self.average_reward()))
         return new_observations
 
     def calc_loss(self, batch, batch_size, epsilon):
@@ -115,7 +112,7 @@ class Agent:
         norm_bellman_error = (rewards - self.value_model(prev_states) + self.value_model(new_states))/self.value_model.eta
         return torch.exp(norm_bellman_error - torch.max(norm_bellman_error))
 
-    def improve_policy(self, learning_rate, val_ratio, batch_size):
+    def improve_policy(self, max_epochs_opt, learning_rate, val_ratio, batch_size):
         # load datasets
         prev_states = self.observations[:][0]
         actions = self.observations[:][1]
@@ -137,7 +134,7 @@ class Agent:
             weights[:val_size - 1]]
 
         # optimize
-        self.policy_model.optimize(train_dataset, val_dataset, batch_size, learning_rate, verbose=self.verbose)
+        self.policy_model.optimize(max_epochs_opt, train_dataset, val_dataset, batch_size, learning_rate, verbose=self.verbose)
 
     def improve_values(self, max_epochs_opt, batch_size, learning_rate, epsilon):
         # init optimizer
@@ -175,13 +172,12 @@ class Agent:
 
     def run_reps(self, iterations=10, exp_episodes=100, exp_timesteps=50, exp_remove_old=True, exp_render=False,
                  val_epochs=50, val_batch_size=100, val_lr=1e-2, val_epsilon=.1,
-                 pol_lr=1e-2, pol_val_ratio=.1, pol_batch_size=100):
+                 pol_epochs=100, pol_lr=1e-2, pol_val_ratio=.1, pol_batch_size=100):
         for i in range(iterations):
+            if self.verbose: print("[reps] iteration", i+1, "/", iterations)
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, remove_old=exp_remove_old, render=exp_render)
             self.improve_values(max_epochs_opt=val_epochs, batch_size=val_batch_size, learning_rate=val_lr, epsilon=val_epsilon)
-            self.improve_policy(learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=pol_batch_size)
-            print(self.policy_model.sigma)
-            if self.verbose: print("[reps] iteration", i+1, "/", iterations, "| average reward:", self.average_reward().data)
+            self.improve_policy(max_epochs_opt=pol_epochs, learning_rate=pol_lr, val_ratio=pol_val_ratio, batch_size=pol_batch_size)
 
 def main():
     from environments.lqr import LQR

@@ -40,7 +40,7 @@ class NormalPolicy():
         m = torch.normal(mean, std_dev)
         return m.data
 
-    def optimize(self, train_dataset, val_dataset, batch_size, learning_rate, verbose=False):
+    def optimize(self, max_epochs_opt, train_dataset, val_dataset, batch_size, learning_rate, verbose=False):
         # init data loader
         train_data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         # init optimizers
@@ -50,7 +50,7 @@ class NormalPolicy():
         last_loss_opt = None
         epochs_opt_no_decrease = 0
         epoch_opt = 0
-        while (epochs_opt_no_decrease < 3):
+        while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 3):
             for batch_idx, batch in enumerate(train_data_loader):
                 optimizer_mu.zero_grad()
 
