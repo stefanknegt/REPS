@@ -1,5 +1,5 @@
-from values.value_model import Value
 from policies.policy_model import Policy
+from values.value_model import Value
 from controller import Controller
 from utils.check_env import environment_check
 import torch
