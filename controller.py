@@ -7,22 +7,22 @@ import torch.nn.functional as F
 import numpy as np
 import random
 
-from utils import *
-from value.value_model import Value
-from policy.policy_model import Policy
+from utils.data import *
+from values.value_model import Value
+from policies.policy_model import Policy
 
-class Controller(nn.module):
+class Controller(nn.Module):
     def __init__(self, name, reset_perc, lr, hidden_dim, value_range, mu_range, sigma_range, eta, epsilon):
         super(Controller, self).__init__()
         self.env = gym.make(name)
         self.reset_perc = reset_perc
         self.state = self.env.reset()
         self.state_dim = len(self.state)
-        self.action_dim = action_dim
+        self.action_dim = 6
         self.hidden_dim = hidden_dim
 
-        self.policy_model = Policy(state_dim, action_dim, hidden_dim, lr, mu_range, sigma_range)
-        self.value_model = Value(state_dim, hidden_dim, value_range, eta, epsilon)
+        self.policy_model = Policy(self.state_dim, self.action_dim, hidden_dim, mu_range, sigma_range, lr)
+        self.value_model = Value(self.state_dim, hidden_dim, value_range, eta, epsilon, lr)
 
     def get_batch_data(self, batch_size, trajectories):
         '''

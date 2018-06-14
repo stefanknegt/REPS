@@ -6,11 +6,10 @@ import torch.functional as F
 import torch.nn.functional as F
 import numpy as np
 import random
+from utils.data import *
 
-from utils import *
-
-class Policy(nn.module):
-    def __init__(self, state_dim, action_dim, hidden_dim, lr, mu_range, sigma_range):
+class Policy(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim, mu_range, sigma_range, lr):
         super(Policy, self).__init__()
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -24,7 +23,7 @@ class Policy(nn.module):
         self.policy_sigma = Variable(sigma_range * torch.rand(self.action_dim, 1), requires_grad=True)
 
         #Initialize the adam optimizer and set its learning rate.
-        self.policy_optimizer = torch.optim.SGD(self.parameters(), lr = lr)
+        self.policy_optimizer = torch.optim.SGD([self.policy_hidden_weights, self.policy_hidden_bias, self.policy_mu_weights, self.policy_mu_bias, self.policy_sigma], lr = lr)
 
     def get_action(self, states):
         '''
