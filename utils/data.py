@@ -65,6 +65,18 @@ class SARSDataset(Dataset):
             self.rewards = torch.cat((self.rewards, self._dict_to_tensor(sars_data, 'reward')), dim=0)
             self.new_states = torch.cat((self.new_states, self._dict_to_tensor(sars_data, 'new_state')), dim=0)
 
+    def concatenate(self, sars_dataset):
+        if self.prev_states is None:
+            self.prev_states = sars_dataset.prev_states
+            self.actions = sars_dataset.actions
+            self.rewards = sars_dataset.rewards
+            self.new_states = sars_dataset.new_states
+        else:
+            self.prev_states = torch.cat((self.prev_states, sars_dataset.prev_states), dim=0)
+            self.actions = torch.cat((self.actions, sars_dataset.actions), dim=0)
+            self.rewards = torch.cat((self.rewards, sars_dataset.rewards), dim=0)
+            self.new_states = torch.cat((self.new_states, sars_dataset.new_states), dim=0)
+
 
 def logsumexponent(term,N):
     '''

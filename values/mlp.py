@@ -1,3 +1,0 @@
-"""
-MLP value estimator
-"""
