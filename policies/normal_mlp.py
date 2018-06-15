@@ -56,10 +56,10 @@ class NormalPolicy_MLP(PolicyModel):
         mu = self.get_mu(begin_states)
         distr = MultivariateNormal(mu, torch.diag(self.sigma))
         log_likelihood = distr.log_prob(actions)
-        check_values(ll_policy=log_likelihood, ll_term_2=torch.mul(actions - mu, actions - mu) / (2 * (self.sigma ** 2)), ll_term_1=torch.log(self.sigma))
+        # check_values(ll_policy=log_likelihood, ll_term_2=torch.mul(actions - mu, actions - mu) / (2 * (self.sigma ** 2)), ll_term_1=torch.log(self.sigma))
 
         # print(begin_states.shape, actions.shape, mu.shape, sigma.shape, log_likelihood.shape, weights.shape)
-        loss = torch.dot(weights, log_likelihood) / (torch.sum(weights)) #we want to normalize for weights
+        loss = - torch.dot(weights.squeeze(), log_likelihood.squeeze()) / (torch.sum(weights)) #we want to normalize for weights
         check_values(loss_policy=loss, weights=weights)
         return loss
 

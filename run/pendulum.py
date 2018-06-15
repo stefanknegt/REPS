@@ -6,11 +6,11 @@ from policies.normal_mlp import NormalPolicy_MLP
 from values.mlp import MLPValue
 from utils.check_env import environment_check
 
-name = 'Pendulum-v0'
+name = 'Reacher-v2'
 state_dim, action_dim, action_min, action_max = environment_check(name)
 
 hidden_dim = 20
-policy_model = NormalPolicy_MLP([3, 4, 5, 1], 1e-3, 1, act_bound=2)
+policy_model = NormalPolicy_MLP([11, 4, 5, 2], 1e-3, 1, act_bound=2)
 value_model = MLPValue([state_dim, hidden_dim, 1])
 
 model = Controller(name, policy_model, value_model, action_min, action_max, verbose=True)
