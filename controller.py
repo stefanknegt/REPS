@@ -177,7 +177,7 @@ class Controller:
                 elif mode == 'policy':
                     model.back_prop_step(prev_states, actions, weights)
                 elif mode == 'value_init':
-                    model.back_prop_step(prev_states, new_states, cum_sums)
+                    model.init_back_prop_step(prev_states, cum_sums)
 
             # evaluate optimization iteration
             if mode == 'value':
@@ -185,7 +185,7 @@ class Controller:
             elif mode == 'policy':
                 cur_loss_opt = model.get_loss(val_obs[0], val_obs[1], val_obs[5])
             if mode == 'value_init':
-                cur_loss_opt = model.get_loss(val_obs[0], val_obs[3], val_obs[4])
+                cur_loss_opt = model.get_init_loss(val_obs[0], val_obs[4])
             if self.verbose:
                 sys.stdout.write('\r[%s] epoch: %d / %d | loss: %f' % (mode, epoch_opt+1, max_epochs_opt, cur_loss_opt))
                 sys.stdout.flush()

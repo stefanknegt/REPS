@@ -32,6 +32,11 @@ class ValueModel(torch.nn.Module):
         return weights
 
 
+    def get_init_loss(self, begin_states, cum_sums):
+        begin_values = self(begin_states)
+        return torch.nn.functional.mse_loss(begin_values, cum_sums)
+
+
     def get_loss(self, begin_states, end_states, rewards):
         N = len(begin_states)
         begin_values = self(begin_states)
@@ -41,6 +46,14 @@ class ValueModel(torch.nn.Module):
         loss = self.eta * self.epsilon + self.eta * logsumexponent((rewards - begin_values + end_values) / self.eta, N) #torch.log(torch.sum(torch.exp((rewards - begin_values + end_values) / self.eta) / N))
         check_values(loss_value=loss)
         return loss
+
+
+    def init_back_prop_step(self, begin_states, cum_sums):
+        loss = self.get_init_loss(begin_states, cum_sums)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        return loss.data.item()
 
 
     def back_prop_step(self, begin_states, end_states, rewards):
