@@ -13,21 +13,19 @@ class SARSDataset(Dataset):
     def __init__(self, sars_data=None):
         """
 
-        :param sars_data: [{'prev_state': array, 'action': array, 'reward': array, 'new_state'}, ... ]
+        :param sars_data: [{'prev_state': array, 'action': array, 'reward': array, 'new_state': array, 'cum_sum': array}, ... ]
         """
         self.prev_states = self._dict_to_tensor(sars_data, 'prev_state') if sars_data is not None else None
         self.actions = self._dict_to_tensor(sars_data, 'action') if sars_data is not None else None
         self.rewards = self._dict_to_tensor(sars_data, 'reward') if sars_data is not None else None
         self.new_states = self._dict_to_tensor(sars_data, 'new_state') if sars_data is not None else None
+        self.cum_sums = self._dict_to_tensor(sars_data, 'cum_sum') if sars_data is not None else None
 
     def __len__(self):
         return len(self.prev_states) if self.prev_states is not None else 0
 
     def __getitem__(self, idx):
-        if isinstance(idx, slice):
-            return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx]
-        else:
-            return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx]
+        return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx], self.cum_sums[idx]
 
     def _dict_to_tensor(self, sars_data, key):
         if len(sars_data) < 1:
@@ -64,6 +62,7 @@ class SARSDataset(Dataset):
             self.actions = torch.cat((self.actions, self._dict_to_tensor(sars_data, 'action')), dim=0)
             self.rewards = torch.cat((self.rewards, self._dict_to_tensor(sars_data, 'reward')), dim=0)
             self.new_states = torch.cat((self.new_states, self._dict_to_tensor(sars_data, 'new_state')), dim=0)
+            self.cum_sums = torch.cat((self.cum_sums, self._dict_to_tensor(sars_data, 'cum_sum')), dim=0)
 
     def concatenate(self, sars_dataset):
         if self.prev_states is None:
@@ -71,11 +70,13 @@ class SARSDataset(Dataset):
             self.actions = sars_dataset.actions
             self.rewards = sars_dataset.rewards
             self.new_states = sars_dataset.new_states
+            self.cum_sums = sars_dataset.cum_sums
         else:
             self.prev_states = torch.cat((self.prev_states, sars_dataset.prev_states), dim=0)
             self.actions = torch.cat((self.actions, sars_dataset.actions), dim=0)
             self.rewards = torch.cat((self.rewards, sars_dataset.rewards), dim=0)
             self.new_states = torch.cat((self.new_states, sars_dataset.new_states), dim=0)
+            self.cum_sums = torch.cat((self.cum_sums, sars_dataset.cum_sums), dim=0)
 
 
 def logsumexponent(term,N):
