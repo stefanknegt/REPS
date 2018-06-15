@@ -18,6 +18,6 @@ value_model = LinearValue(state_dim, hidden_dim, value_range=1, eta=0.1, epsilon
 
 model = Controller(name, policy_model, value_model, action_min, action_max, verbose=True)
 model.train(iterations=5, batch_size=100,
-            exp_episodes=100, exp_timesteps=5000, exp_trajectories=10, exp_history=5, exp_render=True)
+            exp_episodes=100, exp_timesteps=5000, exp_reset_prob=.1, exp_history=5, exp_render=True)
 
 policy_model.save('run/' + name + '.pth')

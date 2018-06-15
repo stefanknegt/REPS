@@ -22,7 +22,7 @@ class NormalPolicy(PolicyModel):
         self.policy_sigma = Variable(sigma_range * torch.rand(self.action_dim, 1), requires_grad=True)
 
         #Initialize the adam optimizer and set its learning rate.
-        self.policy_optimizer = torch.optim.SGD([self.policy_hidden_weights, self.policy_hidden_bias, self.policy_mu_weights, self.policy_mu_bias, self.policy_sigma], lr = lr)
+        self.optimizer = torch.optim.SGD([self.policy_hidden_weights, self.policy_hidden_bias, self.policy_mu_weights, self.policy_mu_bias, self.policy_sigma], lr = lr)
 
     def get_action(self, states):
         '''
@@ -34,12 +34,14 @@ class NormalPolicy(PolicyModel):
 
         eps = Variable(torch.randn(1, mu.size()[1]).float())
         action =  mu + torch.matmul(sigma, eps)
-        mu = mu.transpose(0, 1)
-        return action, mu, sigma
+        return F.tanh(action)
 
     def get_loss(self, begin_states, actions, weights):
         N = len(begin_states)
-        _, mu, sigma = self.get_action(begin_states)
+        hidden = torch.relu(torch.matmul(self.policy_hidden_weights, begin_states.transpose(0, 1)) + self.policy_hidden_bias)
+        mu = torch.matmul(self.policy_mu_weights, hidden) + self.policy_mu_bias
+        mu = mu.transpose(0, 1)
+        sigma = F.softplus(self.policy_sigma)
         check_values(mu=mu,sigma=sigma)
 
         #TODO: Double check dimensions of squares
@@ -51,15 +53,4 @@ class NormalPolicy(PolicyModel):
         check_values(loss_policy=loss, weights=weights)
 
         return loss
-
-    def back_prop_step(self, begin_states, actions, weights):
-        '''
-        This functions calculates the loss for the policy used
-        '''
-        loss = self.get_loss(begin_states, actions, weights)
-        #Take optimizer step
-        self.policy_optimizer.zero_grad()
-        loss.backward(retain_graph = True)
-        self.policy_optimizer.step()
-        return loss.data.item()
 

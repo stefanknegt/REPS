@@ -64,15 +64,11 @@ class Controller:
         return res/len(self.observations)
 
 
-    def explore(self, episodes, timesteps, trajectories, render):
-        """
-        Explore the environment for t timesteps.
+    def last_average_reward(self):
+        return torch.mean(self.observations[-1][:][2])
 
-        :param episodes (int): number of episodes to explore
-        :param timesteps (int): number of timesteps per episode
-        :param remove_old (bool): flag determining whether to keep the old observations
-        :return newly collected observations
-        """
+
+    def explore(self, episodes, timesteps, reset_prob, render):
         # initialize exploration
         new_observations = []
         episode_done = False
@@ -80,7 +76,7 @@ class Controller:
 
         for t in range(episodes*timesteps):
             # reset environment
-            if (t % timesteps == 0) or episode_done or (random.uniform(0, 1) < trajectories/timesteps):
+            if (t % timesteps == 0) or episode_done or (random.uniform(0, 1) < reset_prob):
                 cur_state = self.environment.reset()
             # perform action according to policy
             cur_action = self.get_action(cur_state)
@@ -99,7 +95,7 @@ class Controller:
         # add new observations
         self.observations.append(SARSDataset(new_observations))
 
-        if self.verbose: print("[explore] added", len(new_observations), "observations | average reward:", float(self.average_reward()))
+        if self.verbose: print("[explore] added %d observations | average reward: %f" % (len(new_observations), float(self.last_average_reward())))
         return new_observations
 
 
@@ -182,12 +178,12 @@ class Controller:
 
 
     def train(self, iterations=10, batch_size=100, eval_ratio=.1,
-                exp_episodes=100, exp_timesteps=50, exp_trajectories=10, exp_history=5, exp_render=False,
+                exp_episodes=100, exp_timesteps=50, exp_reset_prob=.1, exp_history=5, exp_render=False,
                 val_epochs=50, pol_epochs=100):
         for i in range(iterations):
             if self.verbose: print("[reps] iteration", i+1, "/", iterations)
             # explore and generate observation history
-            self.explore(episodes=exp_episodes, timesteps=exp_timesteps, trajectories=exp_trajectories, render=exp_render)
+            self.explore(episodes=exp_episodes, timesteps=exp_timesteps, reset_prob=exp_reset_prob, render=exp_render)
             observation_history = self.get_observation_history(i, exp_history)
             train_observations, val_observations = self.get_observation_split(observation_history, eval_ratio)
             # run value model improvement

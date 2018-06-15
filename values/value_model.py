@@ -48,7 +48,6 @@ class ValueModel(torch.nn.Module):
         This function calculates the loss for the value function.
         '''
         loss = self.get_loss(begin_states, end_states, rewards)
-        #Take optimizer step
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
