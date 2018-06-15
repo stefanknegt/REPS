@@ -178,7 +178,7 @@ class Controller:
             epoch_opt += 1
         # use best previously found model
         model.load_state_dict(best_model)
-        if self.verbose: sys.stdout.write('\r[%s] training complete (%d epochs, %f best loss)' % (mode, epoch_opt+1, last_loss_opt) + (' ' * (len(str(max_epochs_opt)))*2 + '\n'))
+        if self.verbose: sys.stdout.write('\r[%s] training complete (%d epochs, %f best loss)' % (mode, epoch_opt, last_loss_opt) + (' ' * (len(str(max_epochs_opt)))*2 + '\n'))
 
 
     def train(self, iterations=10, batch_size=100, eval_ratio=.1,
