@@ -10,11 +10,12 @@ from utils.data import *
 
 
 class MLPNormalPolicy(PolicyModel):
-    def __init__(self, layers, sigma, activation=F.relu, learning_rate=1e-3):
+    def __init__(self, layers, sigma, activation=F.relu, learning_rate=1e-3, act_bound=np.inf):
         super(PolicyModel, self).__init__()
 
         self.layers = []
         self.activation = activation
+        self.act_bound = act_bound
 
         for i in range(len(layers) - 1):
             self.layers.append(torch.nn.Linear(layers[i], layers[i + 1]))
@@ -31,6 +32,8 @@ class MLPNormalPolicy(PolicyModel):
         for i in range(len(self.layers) - 1):
             x = self.activation(self.layers[i](x))
         x = self.layers[-1](x)
+        if not np.any(np.isinf(self.act_bound)):
+            x = self.act_bound * F.tanh(x)
         return x
 
 
@@ -40,7 +43,7 @@ class MLPNormalPolicy(PolicyModel):
         '''
         mu = self.get_mu(states)
         distr = MultivariateNormal(mu, torch.diag(self.sigma))
-        return F.tanh(distr.sample())
+        return distr.sample()
 
 
     def get_loss(self, begin_states, actions, weights):

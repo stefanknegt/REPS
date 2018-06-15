@@ -45,8 +45,7 @@ class Controller:
         state = Tensor([state])
         action_tensor = self.policy_model.get_action(state)
         action_array = action_tensor[0].detach().numpy()
-        action = self.scale_action(action_array)
-        return action
+        return action_array
 
 
     def scale_action(self, action):
