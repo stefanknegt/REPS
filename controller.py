@@ -1,6 +1,4 @@
 from utils.data import *
-from values.value_model import ValueModel
-from policies.policy_model import PolicyModel
 
 import gym
 import random
@@ -8,6 +6,7 @@ import numpy as np
 
 import torch
 from torch import Tensor
+from utils.average_env import make_average_env
 import torch.optim as optim
 from torch.utils.data.dataloader import DataLoader
 
@@ -16,16 +15,21 @@ class Controller:
     Controller for RL agents
     """
 
-    def __init__(self, env_name, policy_model, value_model, action_min, action_max, verbose=False):
+    def __init__(self, env_name, policy_model, value_model, reset_prob, history_depth=1, verbose=False):
         """
         Constructor of agent
         """
         # init gym environment
-        self.environment = gym.make(env_name)
+        self.eval_env = gym.make(env_name)
+        self.sample_env = make_average_env(self.eval_env, reset_prob)
+
+        # get max and min actions
+        self.max_action = np.asscalar(self.eval_env.action_space.high[0])
+        self.min_action = -np.asscalar(self.eval_env.action_space.low[0])
+        assert self.max_action == -self.min_action
+
         # init policy and value models
         self.policy_model = policy_model
-        self.action_min = action_min
-        self.action_max = action_max
         self.value_model = value_model
 
         # list of [SARSDataset, ...] observation batches
@@ -34,6 +38,14 @@ class Controller:
         # verbosity flag
         self.verbose = verbose
 
+        # gamma for values of states
+        self.gamma = 1 - reset_prob
+
+        # history depth
+        self.history_depth = history_depth
+
+        # initial states
+        self.init_states = []
 
     def get_action(self, state):
         """
@@ -47,26 +59,6 @@ class Controller:
         action_array = action_tensor[0].detach().numpy()
         return action_array
 
-
-    def scale_action(self, action):
-        '''
-        Takes an action [-1, 1] and returns an action [self.action_min, self.action_max]
-        '''
-        diff = self.action_max - self.action_min
-        return self.action_min + (diff / 2) * (action + 1)
-
-
-    def average_reward(self):
-        res = 0.
-        for obs in self.observations:
-            res += torch.mean(obs[:][2])
-        return res/len(self.observations)
-
-
-    def last_average_reward(self):
-        return torch.mean(self.observations[-1][:][2])
-
-
     def set_cumulative_sum(self, obs_dicts, episode_length, gamma):
         episode_start_idx = len(obs_dicts) - episode_length
         episode_end_idx = len(obs_dicts) - 1
@@ -75,25 +67,25 @@ class Controller:
             cum_sum += obs_dicts[obs_idx]['reward'] * (gamma ** disc_pow)
             obs_dicts[obs_idx]['cum_sum'] = cum_sum
 
-
-    def explore(self, episodes, timesteps, reset_prob, gamma, render):
+    def explore(self, episodes, max_timesteps_per_episode, gamma_discount):
         # initialize exploration
         new_observations = []
         episode_t = 0
         episode_done = False
-        cur_state = self.environment.reset()
+        cur_state = self.sample_env.reset()
 
-        for t in range(episodes*timesteps):
+        for t in range(episodes*max_timesteps_per_episode):
             # reset environment
-            if (t % timesteps == 0) or episode_done or (random.uniform(0, 1) < reset_prob):
+            if (t % max_timesteps_per_episode == 0) or episode_done:
                 # calculate cumulative sum
-                self.set_cumulative_sum(new_observations, episode_t, gamma)
+                self.set_cumulative_sum(new_observations, episode_t, gamma_discount)
                 episode_t = 0
-                cur_state = self.environment.reset()
+                cur_state = self.sample_env.reset()
+                # add starting state to init states
+                self.init_states.append(cur_state)
             # perform action according to policy
             cur_action = self.get_action(cur_state)
-            new_state, new_reward, episode_done, info = self.environment.step(cur_action)
-            if render: self.environment.render()
+            new_state, new_reward, episode_done, info = self.sample_env.step(cur_action)
 
             # save new observation
             new_observations.append({
@@ -106,19 +98,20 @@ class Controller:
             episode_t += 1
             cur_state = new_state
 
-        # add new observations
+        # remove old and add new observations
+        if len(self.observations) == self.history_depth:
+            self.observations = self.observations[1:]
         self.observations.append(SARSDataset(new_observations))
 
-        if self.verbose: print("[explore] added %d observations | average reward: %f" % (len(new_observations), float(self.last_average_reward())))
+        if self.verbose:
+            print("[explore] added %d observations " % (len(new_observations)))
         return new_observations
 
-
-    def get_observation_history(self, cur_iteration, history_size):
+    def get_observation_history(self):
         res_observations = SARSDataset()
-        for i in range(max(cur_iteration-history_size, 0), cur_iteration+1):
+        for i in range(len(self.observations)):
             res_observations.concatenate(self.observations[i])
         return res_observations
-
 
     def get_observation_split(self, observations, val_ratio):
         # load columns
@@ -128,7 +121,6 @@ class Controller:
         new_states = observations[:][3]
         cum_sums = observations[:][4]
         weights = self.value_model.get_weights(prev_states, new_states, rewards)
-        check_values(weights=weights)
 
         # prepare training and validation splits
         observation_size = weights.size()[0]
@@ -140,7 +132,7 @@ class Controller:
             rewards[val_size:],
             new_states[val_size:],
             cum_sums[val_size:],
-            torch.Tensor(weights.data[val_size:]))
+            weights[val_size:])
         val_dataset = [
             prev_states[:val_size - 1],
             actions[:val_size - 1],
@@ -150,7 +142,6 @@ class Controller:
             weights[:val_size - 1]]
 
         return train_dataset, val_dataset
-
 
     def optimize_model(self, model, train_obs, val_obs, max_epochs_opt, batch_size, is_init=False):
         # check model type

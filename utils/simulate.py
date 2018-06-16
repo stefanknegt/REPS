@@ -1,4 +1,3 @@
-from policies.policy_model import Policy
 import torch
 from torch.autograd import Variable
 import gym
