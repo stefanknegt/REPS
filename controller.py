@@ -210,11 +210,12 @@ class Controller:
             # explore and generate observation history
             self.explore(episodes=exp_episodes, timesteps=exp_timesteps, reset_prob=exp_reset_prob, gamma=exp_gamma, render=exp_render)
             observation_history = self.get_observation_history(i, exp_history)
-            train_observations, val_observations = self.get_observation_split(observation_history, eval_ratio)
             # run initial value model optimisation using cumulative sums
+            train_observations, val_observations = self.get_observation_split(observation_history, eval_ratio)
             if i == 0:
                 self.optimize_model(self.value_model, train_obs=train_observations, val_obs=val_observations, max_epochs_opt=val_epochs, batch_size=batch_size, is_init=True)
             # run value model improvement
             self.optimize_model(self.value_model, train_obs=train_observations, val_obs=val_observations, max_epochs_opt=val_epochs, batch_size=batch_size, is_init=False)
-            # run policy model improvement
+            # run policy model improvement using updated weights
+            train_observations, val_observations = self.get_observation_split(observation_history, eval_ratio)
             self.optimize_model(self.policy_model, train_obs=train_observations, val_obs=val_observations, max_epochs_opt=pol_epochs, batch_size=batch_size, is_init=False)
