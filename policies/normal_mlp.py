@@ -62,8 +62,7 @@ class MLPNormalPolicy(torch.nn.Module):
         with open(path, 'wb') as f:
             torch.save(self, f)
 
-
-                # def back_prop_step(self, begin_states, actions, weights):
+    # def back_prop_step(self, begin_states, actions, weights):
     #     '''
     #     This functions calculates the loss for the policy used
     #     '''

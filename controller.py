@@ -143,6 +143,7 @@ class Controller:
 
         return train_dataset, val_dataset
 
+    # TODO Everything below - write main loop and optimizers in here
     def optimize_model(self, model, train_obs, val_obs, max_epochs_opt, batch_size, is_init=False):
         # check model type
         mode = 'value' if isinstance(model, ValueModel) else 'policy'
