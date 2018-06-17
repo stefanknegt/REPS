@@ -184,7 +184,7 @@ class Controller:
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
-        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 3):
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 5):
             for batch_idx, batch in enumerate(data_loader):
                 prev_states = batch[:][0]
                 actions = batch[:][1]
@@ -257,7 +257,7 @@ class Controller:
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
                 exp_episodes=10, exp_timesteps=100, exp_gamma_discount=1,
                 val_iterations=20, val_min_iterations=10, val_epochs=50, pol_epochs=100,
-                eval_episodes=10, eval_timesteps=100, eval_render=True):
+                eval_episodes=20, eval_timesteps=250, eval_render=True):
         # Reset mu weights (to make mean around 0 at start)
         self.policy_model.reset()
 
