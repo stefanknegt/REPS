@@ -24,6 +24,7 @@ class MLPValue(torch.nn.Module):
         self.optimizer_all = torch.optim.Adam(self.parameters(), lr=learning_rate)
         self.optimizer_eta = torch.optim.Adam([self.eta], lr=learning_rate*100)
 
+
     def forward(self, states):
         out = states
         for i in range(len(self.layers) - 1):
@@ -31,8 +32,10 @@ class MLPValue(torch.nn.Module):
         out = self.layers[-1](out)
         return out
 
+
     def get_value(self, states):
         return self(states)
+
 
     def get_weights(self, begin_states, end_states, init_states, rewards, gamma, normalized=True):
         '''
@@ -49,9 +52,11 @@ class MLPValue(torch.nn.Module):
             weights = weights / torch.sum(weights)
         return weights
 
+
     def mse_loss(self, begin_states, cum_sums):
         begin_values = self(begin_states)
         return F.mse_loss(begin_values, cum_sums)
+
 
     def reps_loss(self, begin_states, end_states, init_states, rewards, gamma):
         begin_values = self(begin_states)
@@ -66,11 +71,13 @@ class MLPValue(torch.nn.Module):
         loss = self.eta * self.epsilon + self.eta * torch.log(torch.mean(weights)) + max_val
         return loss
 
+
     def reset(self, weight_range=1e-8, bias_range=1e-8):
         for l in self.layers:
             l.weight.data.uniform_(-weight_range/2, weight_range/2)
             if l.bias is not None:
                 l.bias.data.uniform_(-bias_range/2, bias_range/2)
+
 
     def optimize_loss(self, train_dataset, val_dataset, loss_type, optimizer, max_epochs, batch_size, init_states=None, gamma=0, verbose=False):
         if batch_size <= 0:

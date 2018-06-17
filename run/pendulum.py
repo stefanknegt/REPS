@@ -1,4 +1,5 @@
 import sys, os
+import torch.nn.functional as F
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from controller import Controller
@@ -10,11 +11,11 @@ name = 'Pendulum-v0'
 state_dim, action_dim, action_min, action_max = environment_check(name)
 
 hidden_dim = 20
-policy_model = MLPNormalPolicy([state_dim, hidden_dim, 1], 1)
-value_model = MLPValue([state_dim, hidden_dim, 1])
+policy_model = MLPNormalPolicy([state_dim, 15, 45, 1], sigma=4, learning_rate=1e-3, act_bound=2, activation=F.tanh)
+value_model = MLPValue([state_dim, 15, 45, 1], learning_rate=1e-3, activation=F.tanh)
 
-model = Controller(name, policy_model, value_model, action_min, action_max, verbose=True)
-model.train(iterations=10, batch_size=100,
-            exp_episodes=10, exp_timesteps=100, exp_history=5, exp_render=True)
+model = Controller(name, policy_model, value_model, reset_prob=0.02, history_depth=1, verbose=True)
+model.set_seeds(42)
+model.train(exp_episodes=50, exp_timesteps=100, val_epochs=100, batch_size=64)
 
-policy_model.save('run/' + name + '.pth')
+policy_model.save('../run/' + name + '.pth')
