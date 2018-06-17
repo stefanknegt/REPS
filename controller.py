@@ -178,7 +178,7 @@ class Controller:
         return np.mean(np.array(avg_rewards))
 
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
-                exp_episodes=10, exp_timesteps=100, exp_history=1, exp_gamma_discount=.99,
+                exp_episodes=10, exp_timesteps=100, exp_history=1, exp_gamma_discount=1,
                 val_epochs=50, pol_epochs=100):
         # Reset mu weights (to make mean around 0 at start)
         self.policy_model.reset()
@@ -192,16 +192,20 @@ class Controller:
             else:
                 self.explore(exp_episodes, exp_timesteps, exp_gamma_discount)
 
-            if i == -1:
+            if i == 0:
                 train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
                 # Optimize V and eta
                 self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.mse_loss,
                                                optimizer=self.value_model.optimizer_all, max_epochs=val_epochs,
                                               batch_size=batch_size, gamma=0, verbose=True)
+
+
+                print(self.value_model.eta)
                 # Optimize only eta (no batches)
                 self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.reps_loss,
                                                optimizer=self.value_model.optimizer_eta, max_epochs=val_epochs,
-                                              batch_size=-1, gamma=0, verbose=True, init_states=Tensor(self.init_states))
+                                              batch_size=-1, gamma=self.gamma, verbose=True, init_states=Tensor(self.init_states))
+                print(self.value_model.eta)
 
             train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
 
@@ -214,7 +218,7 @@ class Controller:
             for itr in range(20):
                 self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.reps_loss,
                                                optimizer=self.value_model.optimizer_all, max_epochs=val_epochs,
-                                               batch_size=batch_size, gamma=0, verbose=True, init_states=Tensor(self.init_states))
+                                               batch_size=batch_size, gamma=self.gamma, verbose=True, init_states=Tensor(self.init_states))
 
                 w = self.value_model.get_weights(prev_states,new_states, Tensor(self.init_states),rewards, self.gamma, True)
                 w = w.detach().numpy()
@@ -222,6 +226,7 @@ class Controller:
                 kl_err = np.abs(kl - self.value_model.epsilon)
                 kl_tol= 0.1
                 valid_kl = kl_err < kl_tol * self.value_model.epsilon
+                print("KL: ", kl, " eta: ", self.value_model.eta)
 
                 if valid_kl and (itr > 10):
                     break
@@ -229,7 +234,7 @@ class Controller:
                 if itr > 10 and not kl < self.value_model.epsilon :
                     self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.reps_loss,
                                                optimizer=self.value_model.optimizer_eta, max_epochs=val_epochs,
-                                              batch_size=-1, gamma=0, verbose=True, init_states=Tensor(self.init_states))
+                                              batch_size=-1, gamma=self.gamma, verbose=True, init_states=Tensor(self.init_states))
 
             train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
             self.policy_model.optimize_loss(train_dataset, val_dataset, pol_epochs, batch_size, True)

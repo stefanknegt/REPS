@@ -15,6 +15,6 @@ policy_model = MLPNormalPolicy([state_dim, 15, 45, 1], sigma=4, learning_rate=1e
 value_model = MLPValue([state_dim, 15, 45, 1], learning_rate=1e-3, activation=F.tanh)
 
 model = Controller(name, policy_model, value_model, reset_prob=0.02, history_depth=1, verbose=True,)
-model.train(exp_episodes=25, exp_timesteps=100)
+model.train(exp_episodes=50, exp_timesteps=100, val_epochs=100, batch_size=64)
 
 policy_model.save('../run/' + name + '.pth')

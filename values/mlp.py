@@ -4,6 +4,8 @@ from torch.utils.data.dataloader import DataLoader
 from torch import Tensor
 from torch.nn import functional as F
 
+import numpy as np
+from scipy.optimize import minimize
 
 
 class MLPValue(torch.nn.Module):
@@ -20,7 +22,7 @@ class MLPValue(torch.nn.Module):
         self.epsilon = epsilon
 
         self.optimizer_all = torch.optim.Adam(self.parameters(), lr=learning_rate)
-        self.optimizer_eta = torch.optim.Adam([self.eta], lr=learning_rate)
+        self.optimizer_eta = torch.optim.Adam([self.eta], lr=learning_rate*100)
 
     def forward(self, states):
         out = states
