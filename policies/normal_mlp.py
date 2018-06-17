@@ -44,6 +44,13 @@ class MLPNormalPolicy(torch.nn.Module):
         distr = MultivariateNormal(mu, torch.diag(self.sigma))
         return distr.sample()
 
+    def get_action_determ(self, states):
+        '''
+        Action is a random multivariate Gaussian determined by an MLP with diagonal covariance.
+        '''
+        mu = self.get_mu(states)
+        return mu
+
     def get_loss(self, begin_states, actions, weights):
         mu = self.get_mu(begin_states)
         distr = MultivariateNormal(mu, torch.diag(self.sigma))
@@ -55,7 +62,7 @@ class MLPNormalPolicy(torch.nn.Module):
         for l in self.layers:
             l.weight.data.uniform_(-weight_range/2, weight_range/2)
             if l.bias is not None:
-                l.bias.data.uniform_(-bias_range/2, bias_range/2)
+                l.bias.data.zero_()
 
     def optimize_loss(self, train_dataset, val_dataset, max_epochs, batch_size, verbose=False):
         if batch_size <= 0:

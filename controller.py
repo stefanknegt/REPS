@@ -66,6 +66,18 @@ class Controller:
         action_array = action_tensor[0].detach().numpy()
         return action_array
 
+    def get_action_determ(self, state):
+        """
+        Get deterministic action given current state according to the current policy.
+
+        :param state: appropriate representation of the current state
+        :return appriate action representation
+        """
+        state = Tensor([state])
+        action_tensor = self.policy_model.get_action_determ(state)
+        action_array = action_tensor[0].detach().numpy()
+        return action_array
+
 
     def set_cumulative_sum(self, obs_dicts, episode_length, gamma):
         episode_start_idx = len(obs_dicts) - episode_length
@@ -126,11 +138,14 @@ class Controller:
 
     def get_observation_split(self, observations, val_ratio):
         # load columns
+
         prev_states = observations[:][0]
         actions = observations[:][1]
         rewards = observations[:][2]
         new_states = observations[:][3]
         cum_sums = observations[:][4]
+
+
         weights = self.value_model.get_weights(prev_states, new_states, Tensor(self.init_states), rewards, self.gamma)
 
         # prepare training and validation splits
@@ -164,14 +179,17 @@ class Controller:
             if (t % max_timesteps == 0) or episode_done:
                 # reset environment
                 cur_state = self.env_sample.reset()
-                avg_rewards.append(np.mean(np.array(rewards)))
+                if t != 0:
+                    avg_rewards.append(np.mean(np.array(rewards)))
                 rewards = []
             # perform action according to policy
-            cur_action = self.get_action(cur_state)
+            cur_action = self.get_action_determ(cur_state)
             cur_state, new_reward, episode_done, info = self.env_sample.step(cur_action)
             rewards.append(new_reward)
             if render:
                 self.env_eval.render()
+            avg_rewards.append(np.mean(np.array(rewards)))
+
         return np.mean(np.array(avg_rewards))
 
 
@@ -184,7 +202,7 @@ class Controller:
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
-        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 5):
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 10):
             for batch_idx, batch in enumerate(data_loader):
                 prev_states = batch[:][0]
                 actions = batch[:][1]
@@ -255,9 +273,9 @@ class Controller:
 
 
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
-                exp_episodes=10, exp_timesteps=100, exp_gamma_discount=1,
+                exp_episodes=10, exp_timesteps=100, exp_gamma_discount=0.9,
                 val_iterations=20, val_min_iterations=10, val_epochs=50, pol_epochs=100,
-                eval_episodes=20, eval_timesteps=250, eval_render=True):
+                eval_episodes=25, eval_timesteps=100, eval_render=True):
         # Reset mu weights (to make mean around 0 at start)
         self.policy_model.reset()
 
@@ -301,12 +319,15 @@ class Controller:
 
             # Policy optimization
             # recalculate weights
-            train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
+            train_dataset, _ = self.get_observation_split(self.get_observation_history(), 0)
+            _ , val_dataset= self.get_observation_split(self.get_observation_history(), 1)
+
             self.optimize(mode='policy', model=self.policy_model, optimizer=self.policy_model.optimizer,
                             train_dataset=train_dataset, val_dataset=val_dataset,
                             max_epochs=pol_epochs, batch_size=batch_size, verbose=self.verbose)
 
             # Evaluation
+            eval_render = reps_i % 2 != 0
             avg_reward = self.evaluate(episodes=eval_episodes, max_timesteps=eval_timesteps, render=eval_render)
             print("[eval] average reward:", avg_reward)
             print()

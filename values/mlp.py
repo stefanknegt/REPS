@@ -76,7 +76,7 @@ class MLPValue(torch.nn.Module):
         for l in self.layers:
             l.weight.data.uniform_(-weight_range/2, weight_range/2)
             if l.bias is not None:
-                l.bias.data.uniform_(-bias_range/2, bias_range/2)
+                l.bias.data.zero_()
 
 
     def optimize_loss(self, train_dataset, val_dataset, loss_type, optimizer, max_epochs, batch_size, init_states=None, gamma=0, verbose=False):
