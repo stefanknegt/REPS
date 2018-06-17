@@ -3,8 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 from torch.distributions import MultivariateNormal
-import math
-import numpy as np
+from torch.utils.data.dataloader import DataLoader
 from utils.data import *
 
 
@@ -57,6 +56,48 @@ class MLPNormalPolicy(torch.nn.Module):
             l.weight.data.uniform_(-weight_range/2, weight_range/2)
             if l.bias is not None:
                 l.bias.data.uniform_(-bias_range/2, bias_range/2)
+
+    def optimize_loss(self, train_dataset, val_dataset, max_epochs, batch_size, verbose=False):
+        if batch_size <= 0:
+            batch_size = len(train_dataset)
+        data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+        best_model = None
+        last_loss_opt = None
+        epochs_opt_no_decrease = 0
+        epoch_opt = 0
+
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 3):
+            for batch_idx, batch in enumerate(data_loader):
+                prev_states = batch[:][0]
+                actions = batch[:][1]
+                weights = batch[:][5]
+
+                # back prop steps
+
+                loss = self.get_loss(prev_states, actions, weights)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+            # calculate validation loss
+            valid_loss = self.get_loss(val_dataset[0], val_dataset[1], val_dataset[5])
+            if verbose:
+                sys.stdout.write('\r[policy] epoch: %d / %d | loss: %f' % (epoch_opt+1, max_epochs, valid_loss))
+                sys.stdout.flush()
+
+            # check if loss is decreasing
+            if (last_loss_opt is None) or (valid_loss < last_loss_opt):
+                best_model = self.state_dict()
+                epochs_opt_no_decrease = 0
+                last_loss_opt = valid_loss
+            else:
+                epochs_opt_no_decrease += 1
+            epoch_opt += 1
+
+        # use best previously found model
+        self.load_state_dict(best_model)
+        if verbose:
+            sys.stdout.write('\r[policy] training complete (%d epochs, %f best loss)' % (epoch_opt, last_loss_opt) + (' ' * (len(str(max_epochs))) * 2 + '\n'))
 
     def save(self, path):
         with open(path, 'wb') as f:

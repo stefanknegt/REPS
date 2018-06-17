@@ -1,6 +1,9 @@
 import torch
+import sys
+from torch.utils.data.dataloader import DataLoader
 from torch import Tensor
 from torch.nn import functional as F
+
 
 
 class MLPValue(torch.nn.Module):
@@ -44,11 +47,11 @@ class MLPValue(torch.nn.Module):
             weights = weights / torch.sum(weights)
         return weights
 
-    def get_mse_loss(self, begin_states, cum_sums):
+    def mse_loss(self, begin_states, cum_sums):
         begin_values = self(begin_states)
-        return torch.nn.functional.mse_loss(begin_values, cum_sums)
+        return F.mse_loss(begin_values, cum_sums)
 
-    def get_reps_loss(self, begin_states, end_states, init_states, rewards, gamma):
+    def reps_loss(self, begin_states, end_states, init_states, rewards, gamma):
         begin_values = self(begin_states)
         end_values = self(end_states)
         init_values = self(init_states)
@@ -66,6 +69,57 @@ class MLPValue(torch.nn.Module):
             l.weight.data.uniform_(-weight_range/2, weight_range/2)
             if l.bias is not None:
                 l.bias.data.uniform_(-bias_range/2, bias_range/2)
+
+    def optimize_loss(self, train_dataset, val_dataset, loss_type, optimizer, max_epochs, batch_size, init_states=None, gamma=0, verbose=False):
+        if batch_size <= 0:
+            batch_size = len(train_dataset)
+        data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+        best_model = None
+        last_loss_opt = None
+        epochs_opt_no_decrease = 0
+        epoch_opt = 0
+
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 3):
+            for batch_idx, batch in enumerate(data_loader):
+                prev_states = batch[:][0]
+                actions = batch[:][1]
+                rewards = batch[:][2]
+                new_states = batch[:][3]
+                cum_sums = batch[:][4]
+                weights = batch[:][5]
+
+                # back prop steps
+                if loss_type == self.mse_loss:
+                    loss = self.mse_loss(prev_states, cum_sums)
+                else:
+                    loss = self.reps_loss(prev_states, new_states, init_states, rewards, gamma)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            # calculate validation loss
+            if loss_type == self.mse_loss:
+                valid_loss = self.mse_loss(val_dataset[0], val_dataset[4])
+            else:
+                valid_loss = self.reps_loss(val_dataset[0], val_dataset[3], init_states, val_dataset[2], gamma)
+            if verbose:
+                sys.stdout.write('\r[valid] epoch: %d / %d | loss: %f' % (epoch_opt+1, max_epochs, valid_loss))
+                sys.stdout.flush()
+
+            # check if loss is decreasing
+            if (last_loss_opt is None) or (valid_loss < last_loss_opt):
+                best_model = self.state_dict()
+                epochs_opt_no_decrease = 0
+                last_loss_opt = valid_loss
+            else:
+                epochs_opt_no_decrease += 1
+            epoch_opt += 1
+
+        # use best previously found model
+        self.load_state_dict(best_model)
+        if verbose:
+            sys.stdout.write('\r[valid] training complete (%d epochs, %f best loss)' % (epoch_opt, last_loss_opt) + (' ' * (len(str(max_epochs))) * 2 + '\n'))
+
 
     def save(self, path):
         with open(path, 'wb') as f:

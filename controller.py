@@ -5,27 +5,31 @@ import random
 import numpy as np
 
 import torch
+import torch.random
 from torch import Tensor
 from utils.average_env import make_average_env
 import torch.optim as optim
 from torch.utils.data.dataloader import DataLoader
+from values.mlp import MLPValue
+from policies.normal_mlp import MLPNormalPolicy
 
 class Controller:
     """
     Controller for RL agents
     """
 
-    def __init__(self, env_name, policy_model, value_model, reset_prob, history_depth=1, verbose=False):
+    def __init__(self, env_name, policy_model : MLPNormalPolicy, value_model : MLPValue, reset_prob, history_depth=1, verbose=False, random_seed=42):
         """
         Constructor of agent
         """
         # init gym environment
-        self.eval_env = gym.make(env_name)
-        self.sample_env = make_average_env(self.eval_env, reset_prob)
+        env = gym.make(env_name)
+        self.eval_env = env
+        self.sample_env = make_average_env(env, reset_prob)
 
         # get max and min actions
         self.max_action = np.asscalar(self.eval_env.action_space.high[0])
-        self.min_action = -np.asscalar(self.eval_env.action_space.low[0])
+        self.min_action = np.asscalar(self.eval_env.action_space.low[0])
         assert self.max_action == -self.min_action
 
         # init policy and value models
@@ -46,6 +50,17 @@ class Controller:
 
         # initial states
         self.init_states = []
+
+        # set random seeds
+        if random_seed >= 0:
+            self.set_seeds(random_seed)
+
+    def set_seeds(self, seed=42):
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.random.manual_seed(seed)
+        self.sample_env.seed(seed)
+        self.eval_env.seed(seed)
 
     def get_action(self, state):
         """
@@ -120,7 +135,7 @@ class Controller:
         rewards = observations[:][2]
         new_states = observations[:][3]
         cum_sums = observations[:][4]
-        weights = self.value_model.get_weights(prev_states, new_states, rewards)
+        weights = self.value_model.get_weights(prev_states, new_states, Tensor(self.init_states), rewards, self.gamma)
 
         # prepare training and validation splits
         observation_size = weights.size()[0]
@@ -132,7 +147,7 @@ class Controller:
             rewards[val_size:],
             new_states[val_size:],
             cum_sums[val_size:],
-            weights[val_size:])
+            torch.Tensor(weights.data[val_size:]))
         val_dataset = [
             prev_states[:val_size - 1],
             actions[:val_size - 1],
@@ -143,71 +158,84 @@ class Controller:
 
         return train_dataset, val_dataset
 
-    # TODO Everything below - write main loop and optimizers in here
-    def optimize_model(self, model, train_obs, val_obs, max_epochs_opt, batch_size, is_init=False):
-        # check model type
-        mode = 'value' if isinstance(model, ValueModel) else 'policy'
-        mode = 'value_init' if is_init else mode
-        # train on observation batches
-        data_loader = DataLoader(train_obs, batch_size=batch_size, shuffle=True, num_workers=4)
-        best_model = None
-        last_loss_opt = None
-        epochs_opt_no_decrease = 0
-        epoch_opt = 0
-        # monte carlo initialisation
-        while (epoch_opt < max_epochs_opt) and (epochs_opt_no_decrease < 3):
-            for batch_idx, batch in enumerate(data_loader):
-                prev_states = batch[:][0]
-                actions = batch[:][1]
-                rewards = batch[:][2]
-                new_states = batch[:][3]
-                cum_sums = batch[:][4]
-                weights = batch[:][5]
-                # back prop steps
-                if mode == 'value':
-                    model.back_prop_step(prev_states, new_states, rewards)
-                elif mode == 'policy':
-                    model.back_prop_step(prev_states, actions, weights)
-                elif mode == 'value_init':
-                    model.init_back_prop_step(prev_states, cum_sums)
+    def evaluate(self, episodes=10, max_timesteps_per_episode=100, render=True):
+        cur_state = self.eval_env.reset()
+        avg_rewards = []
+        rewards = []
+        episode_done = False
+        for t in range(episodes*max_timesteps_per_episode):
+            if (t % max_timesteps_per_episode == 0) or episode_done:
+                # reset environment
+                cur_state = self.sample_env.reset()
+                avg_rewards.append(np.mean(np.array(rewards)))
+                rewards = []
+            # perform action according to policy
+            cur_action = self.get_action(cur_state)
+            cur_state, new_reward, episode_done, info = self.sample_env.step(cur_action)
+            rewards.append(new_reward)
+            if render:
+                self.eval_env.render()
+        return np.mean(np.array(avg_rewards))
 
-            # evaluate optimization iteration
-            if mode == 'value':
-                cur_loss_opt = model.get_loss(val_obs[0], val_obs[3], val_obs[2])
-            elif mode == 'policy':
-                cur_loss_opt = model.get_loss(val_obs[0], val_obs[1], val_obs[5])
-            if mode == 'value_init':
-                cur_loss_opt = model.get_init_loss(val_obs[0], val_obs[4])
-            if self.verbose:
-                sys.stdout.write('\r[%s] epoch: %d / %d | loss: %f' % (mode, epoch_opt+1, max_epochs_opt, cur_loss_opt))
-                sys.stdout.flush()
-
-            if (last_loss_opt is None) or (cur_loss_opt < last_loss_opt):
-                best_model = model.state_dict()
-                epochs_opt_no_decrease = 0
-                last_loss_opt = cur_loss_opt
-            else:
-                epochs_opt_no_decrease += 1
-            epoch_opt += 1
-        # use best previously found model
-        model.load_state_dict(best_model)
-        if self.verbose: sys.stdout.write('\r[%s] training complete (%d epochs, %f best loss)' % (mode, epoch_opt, last_loss_opt) + (' ' * (len(str(max_epochs_opt)))*2 + '\n'))
-
-
-    def train(self, iterations=10, batch_size=100, eval_ratio=.1,
-                exp_episodes=100, exp_timesteps=50, exp_reset_prob=.0, exp_history=5, exp_gamma=.9, exp_render=False,
+    def train(self, iterations=10, batch_size=64, val_ratio=.1,
+                exp_episodes=10, exp_timesteps=100, exp_history=1, exp_gamma_discount=.99,
                 val_epochs=50, pol_epochs=100):
+        # Reset mu weights (to make mean around 0 at start)
+        self.policy_model.reset()
+        avg_reward_over_time = []
+
         for i in range(iterations):
-            if self.verbose: print("[reps] iteration", i+1, "/", iterations)
-            # explore and generate observation history
-            self.explore(episodes=exp_episodes, timesteps=exp_timesteps, reset_prob=exp_reset_prob, gamma=exp_gamma, render=exp_render)
-            observation_history = self.get_observation_history(i, exp_history)
-            # run initial value model optimisation using cumulative sums
-            train_observations, val_observations = self.get_observation_split(observation_history, eval_ratio)
+            # Gather data
             if i == 0:
-                self.optimize_model(self.value_model, train_obs=train_observations, val_obs=val_observations, max_epochs_opt=val_epochs, batch_size=batch_size, is_init=True)
-            # run value model improvement
-            self.optimize_model(self.value_model, train_obs=train_observations, val_obs=val_observations, max_epochs_opt=val_epochs, batch_size=batch_size, is_init=False)
-            # run policy model improvement using updated weights
-            train_observations, val_observations = self.get_observation_split(observation_history, eval_ratio)
-            self.optimize_model(self.policy_model, train_obs=train_observations, val_obs=val_observations, max_epochs_opt=pol_epochs, batch_size=batch_size, is_init=False)
+                for j in range(exp_history):
+                    self.explore(exp_episodes, exp_timesteps, exp_gamma_discount)
+            else:
+                self.explore(exp_episodes, exp_timesteps, exp_gamma_discount)
+
+            if i == -1:
+                train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
+                # Optimize V and eta
+                self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.mse_loss,
+                                               optimizer=self.value_model.optimizer_all, max_epochs=val_epochs,
+                                              batch_size=batch_size, gamma=0, verbose=True)
+                # Optimize only eta (no batches)
+                self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.reps_loss,
+                                               optimizer=self.value_model.optimizer_eta, max_epochs=val_epochs,
+                                              batch_size=-1, gamma=0, verbose=True, init_states=Tensor(self.init_states))
+
+            train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
+
+            obs = self.get_observation_history()
+            prev_states = obs[:][0]
+            actions = obs[:][1]
+            rewards = obs[:][2]
+            new_states = obs[:][3]
+
+            for itr in range(20):
+                self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.reps_loss,
+                                               optimizer=self.value_model.optimizer_all, max_epochs=val_epochs,
+                                               batch_size=batch_size, gamma=0, verbose=True, init_states=Tensor(self.init_states))
+
+                w = self.value_model.get_weights(prev_states,new_states, Tensor(self.init_states),rewards, self.gamma, True)
+                w = w.detach().numpy()
+                kl = np.nansum(w[np.nonzero(w)] * np.log(w[np.nonzero(w)] * w.size))
+                kl_err = np.abs(kl - self.value_model.epsilon)
+                kl_tol= 0.1
+                valid_kl = kl_err < kl_tol * self.value_model.epsilon
+
+                if valid_kl and (itr > 10):
+                    break
+
+                if itr > 10 and not kl < self.value_model.epsilon :
+                    self.value_model.optimize_loss(train_dataset, val_dataset, loss_type=self.value_model.reps_loss,
+                                               optimizer=self.value_model.optimizer_eta, max_epochs=val_epochs,
+                                              batch_size=-1, gamma=0, verbose=True, init_states=Tensor(self.init_states))
+
+            train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
+            self.policy_model.optimize_loss(train_dataset, val_dataset, pol_epochs, batch_size, True)
+
+            self.evaluate()
+
+
+
+
