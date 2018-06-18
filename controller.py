@@ -4,6 +4,7 @@ from utils.average_env import make_average_env
 import gym
 import random
 import numpy as np
+import pickle
 
 import torch
 import torch.random
@@ -16,10 +17,11 @@ class Controller:
     Controller for RL agents
     """
 
-    def __init__(self, env_name, policy_model, value_model, 
+    def __init__(self, env_name, policy_model, value_model,
                 reset_prob=0.02, history_depth=1, verbose=False):
         # init gym environment
         env = gym.make(env_name)
+        self.env_name = env_name
         self.env_eval = env
         self.env_sample = make_average_env(env, reset_prob)
 
@@ -45,6 +47,9 @@ class Controller:
         # verbosity flag
         self.verbose = verbose
 
+        #Dict for saving data:
+        self.results_dict = {'iteration':[], 'rewards':[], 'value_loss':[], 'policy_loss':[], 'eta':[]}
+
 
     def set_seeds(self, seed=42):
         random.seed(seed)
@@ -64,6 +69,7 @@ class Controller:
         state = Tensor([state])
         action_tensor = self.policy_model.get_action(state)
         action_array = action_tensor[0].detach().numpy()
+        #print('[actions]: ', np.min(action_array), np.max(action_array))
         return action_array
 
     def get_action_determ(self, state):
@@ -77,7 +83,6 @@ class Controller:
         action_tensor = self.policy_model.get_action_determ(state)
         action_array = action_tensor[0].detach().numpy()
         return action_array
-
 
     def set_cumulative_sum(self, obs_dicts, episode_length, gamma):
         episode_start_idx = len(obs_dicts) - episode_length
@@ -202,7 +207,7 @@ class Controller:
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
-        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 10):
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 3):
             for batch_idx, batch in enumerate(data_loader):
                 prev_states = batch[:][0]
                 actions = batch[:][1]
@@ -248,6 +253,16 @@ class Controller:
 
         # use best previously found model
         model.load_state_dict(best_model)
+
+        #save results in dict:
+        if mode == 'policy':
+            self.results_dict['policy_loss'].append(float(valid_loss))
+        elif mode == 'value':
+            if len(self.results_dict['iteration']) == len(self.results_dict['value_loss']): #to avoid having multiple value losses.
+                self.results_dict['value_loss'][-1] = float(valid_loss)
+            else:
+                self.results_dict['value_loss'].append(float(valid_loss))
+
         if verbose:
             sys.stdout.write('\r[%s] training complete (%d epochs, %f best loss)' % (mode, epoch_opt, last_loss_opt) + (' ' * (len(str(max_epochs))) * 2 + '\n'))
 
@@ -275,11 +290,11 @@ class Controller:
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
                 exp_episodes=10, exp_timesteps=100, exp_gamma_discount=0.9,
                 val_iterations=20, val_min_iterations=10, val_epochs=50, pol_epochs=100,
-                eval_episodes=25, eval_timesteps=100, eval_render=True):
-        # Reset mu weights (to make mean around 0 at start)
-        self.policy_model.reset()
+                eval_episodes=25, eval_timesteps=100, eval_render=True, pickle_name='v0'):
 
         for reps_i in range(iterations):
+            self.results_dict['iteration'].append(reps_i + 1)
+
             if self.verbose: print("[REPS] iteration", reps_i+1, "/", iterations)
 
             # Gather and prepare data (minimum of history_depth explorations)
@@ -317,6 +332,8 @@ class Controller:
                                     train_dataset=train_dataset, val_dataset=val_dataset,
                                     max_epochs=val_epochs, batch_size=-1, verbose=self.verbose)
 
+            self.results_dict['eta'].append(float(self.value_model.eta))
+
             # Policy optimization
             # recalculate weights
             train_dataset, _ = self.get_observation_split(self.get_observation_history(), 0)
@@ -330,8 +347,8 @@ class Controller:
             eval_render = reps_i % 2 != 0
             avg_reward = self.evaluate(episodes=eval_episodes, max_timesteps=eval_timesteps, render=eval_render)
             print("[eval] average reward:", avg_reward)
+            self.results_dict['rewards'].append(avg_reward)
             print()
 
-
-
-
+            with open('results/'+self.env_name +'_'+ pickle_name + '.pickle', 'wb') as handle:
+                pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)

@@ -8,7 +8,7 @@ from utils.data import *
 
 
 class MLPNormalPolicy(torch.nn.Module):
-    def __init__(self, layers, sigma, activation=F.relu, learning_rate=1e-3, act_bound=np.inf):
+    def __init__(self, layers, sigma, activation=F.relu, learning_rate=1e-3, act_bound=np.inf, init_value=1e-8):
         super(MLPNormalPolicy, self).__init__()
 
         self.layers = []
@@ -23,6 +23,9 @@ class MLPNormalPolicy(torch.nn.Module):
 
         #Initialize the adam optimizer and set its learning rate.
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+
+        # Reset mu weights (to make mean around 0 at start) - default set to 1e-8
+        self.reset(weight_range=init_value, bias_range=init_value)
 
     def forward(self, states):
         return self.get_action(states)
@@ -41,7 +44,7 @@ class MLPNormalPolicy(torch.nn.Module):
         Action is a random multivariate Gaussian determined by an MLP with diagonal covariance.
         '''
         mu = self.get_mu(states)
-        distr = MultivariateNormal(mu, torch.diag(self.sigma))
+        distr = MultivariateNormal(mu, torch.diag(F.softplus(self.sigma)))
         return distr.sample()
 
     def get_action_determ(self, states):
@@ -119,6 +122,3 @@ class MLPNormalPolicy(torch.nn.Module):
     #     loss.backward()
     #     self.optimizer.step()
     #     return loss.data.item()
-
-
-
