@@ -44,11 +44,11 @@ class Controller:
         # set transition probability to initial state (gamma)
         self.gamma = 1 - reset_prob
 
+        # dict for saving data:
+        self.results_dict = {'iteration':[], 'rewards':[], 'value_loss':[], 'policy_loss':[], 'eta':[]}
+
         # verbosity flag
         self.verbose = verbose
-
-        #Dict for saving data:
-        self.results_dict = {'iteration':[], 'rewards':[], 'value_loss':[], 'policy_loss':[], 'eta':[]}
 
 
     def set_seeds(self, seed=42):
@@ -72,6 +72,7 @@ class Controller:
         #print('[actions]: ', np.min(action_array), np.max(action_array))
         return action_array
 
+
     def get_action_determ(self, state):
         """
         Get deterministic action given current state according to the current policy.
@@ -83,6 +84,7 @@ class Controller:
         action_tensor = self.policy_model.get_action_determ(state)
         action_array = action_tensor[0].detach().numpy()
         return action_array
+
 
     def set_cumulative_sum(self, obs_dicts, episode_length, gamma):
         episode_start_idx = len(obs_dicts) - episode_length
@@ -96,6 +98,7 @@ class Controller:
     def explore(self, episodes, max_timesteps, gamma_discount):
         # initialize exploration
         new_observations = []
+        new_init_states = []
         episode_t = 0
         episode_done = False
         cur_state = self.env_sample.reset()
@@ -108,7 +111,7 @@ class Controller:
                 episode_t = 0
                 cur_state = self.env_sample.reset()
                 # add starting state to init states
-                self.init_states.append(cur_state)
+                new_init_states.append(cur_state)
             # perform action according to policy
             cur_action = self.get_action(cur_state)
             new_state, new_reward, episode_done, info = self.env_sample.step(cur_action)
@@ -129,9 +132,21 @@ class Controller:
             self.observations = self.observations[1:]
         self.observations.append(SARSDataset(new_observations))
 
+        # remove old and add new initial state observations
+        if len(self.init_states) == self.history_depth:
+            self.init_states = self.init_states[1:]
+        self.init_states.append(new_init_states)
+
         if self.verbose:
             print("[explore] added %d observations " % (len(new_observations)))
         return new_observations
+
+
+    def get_init_state_history(self):
+        res_init_states = []
+        for init_states in self.init_states:
+            res_init_states += init_states
+        return Tensor(res_init_states)
 
 
     def get_observation_history(self):
@@ -143,34 +158,34 @@ class Controller:
 
     def get_observation_split(self, observations, val_ratio):
         # load columns
-
         prev_states = observations[:][0]
         actions = observations[:][1]
         rewards = observations[:][2]
         new_states = observations[:][3]
         cum_sums = observations[:][4]
+        weights = self.value_model.get_weights(prev_states, new_states, self.get_init_state_history(), rewards, self.gamma)
+        weights = Tensor(weights.data) # detach weights from gradient graph
 
+        # prepare data splits
+        shuffled_indices = torch.randperm(len(observations))
+        val_size = round(val_ratio*len(observations))
+        train_indices = shuffled_indices[val_size:]
+        val_indices = shuffled_indices[:val_size-1]
 
-        weights = self.value_model.get_weights(prev_states, new_states, Tensor(self.init_states), rewards, self.gamma)
-
-        # prepare training and validation splits
-        observation_size = weights.size()[0]
-        val_size = round(val_ratio*observation_size)
-        train_size = observation_size - val_size
         train_dataset = torch.utils.data.TensorDataset(
-            prev_states[val_size:],
-            actions[val_size:],
-            rewards[val_size:],
-            new_states[val_size:],
-            cum_sums[val_size:],
-            torch.Tensor(weights.data[val_size:]))
-        val_dataset = [
-            prev_states[:val_size - 1],
-            actions[:val_size - 1],
-            rewards[:val_size - 1],
-            new_states[:val_size - 1],
-            cum_sums[:val_size - 1],
-            weights[:val_size - 1]]
+            prev_states.index_select(dim=0, index=train_indices),
+            actions.index_select(dim=0, index=train_indices),
+            rewards.index_select(dim=0, index=train_indices),
+            new_states.index_select(dim=0, index=train_indices),
+            cum_sums.index_select(dim=0, index=train_indices),
+            weights.index_select(dim=0, index=train_indices))
+        val_dataset = torch.utils.data.TensorDataset(
+            prev_states.index_select(dim=0, index=val_indices),
+            actions.index_select(dim=0, index=val_indices),
+            rewards.index_select(dim=0, index=val_indices),
+            new_states.index_select(dim=0, index=val_indices),
+            cum_sums.index_select(dim=0, index=val_indices),
+            weights.index_select(dim=0, index=val_indices))
 
         return train_dataset, val_dataset
 
@@ -199,8 +214,6 @@ class Controller:
 
 
     def optimize(self, mode, model, optimizer, train_dataset, val_dataset, max_epochs, batch_size, verbose):
-        if batch_size <= 0:
-            batch_size = len(train_dataset)
         data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         best_model = None
         last_loss_opt = None
@@ -215,7 +228,7 @@ class Controller:
                 new_states = batch[:][3]
                 cum_sums = batch[:][4]
                 weights = batch[:][5]
-                init_states = Tensor(self.init_states)
+                init_states = self.get_init_state_history()
 
                 # calculate loss
                 if mode == 'value_init':
@@ -225,22 +238,26 @@ class Controller:
                 elif mode == 'policy':
                     loss = model.get_loss(prev_states, actions, weights)
 
-                # propagate back
+                # backpropagation step
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-            # calculate validation loss
-            if mode == 'value_init':
-                valid_loss = model.mse_loss(val_dataset[0], val_dataset[4])
-            elif mode in ['value', 'eta']:
-                valid_loss = model.reps_loss(val_dataset[0], val_dataset[3], init_states, val_dataset[2], self.gamma)
-            elif mode == 'policy':
-                valid_loss = model.get_loss(val_dataset[0], val_dataset[1], val_dataset[5])
+            # evaluate performance on validation set
+            prev_states = val_dataset[:][0]
+            actions = val_dataset[:][1]
+            rewards = val_dataset[:][2]
+            new_states = val_dataset[:][3]
+            cum_sums = val_dataset[:][4]
+            weights = val_dataset[:][5]
+            init_states = self.get_init_state_history()
 
-            if verbose:
-                sys.stdout.write('\r[%s] epoch: %d / %d | loss: %f' % (mode, epoch_opt+1, max_epochs, valid_loss))
-                sys.stdout.flush()
+            if mode == 'value_init':
+                valid_loss = model.mse_loss(prev_states, cum_sums)
+            elif mode in ['value', 'eta']:
+                valid_loss = model.reps_loss(prev_states, new_states, init_states, rewards, self.gamma)
+            elif mode == 'policy':
+                valid_loss = model.get_loss(prev_states, actions, weights)
 
             # check if loss is decreasing
             if (last_loss_opt is None) or (valid_loss < last_loss_opt):
@@ -249,6 +266,11 @@ class Controller:
                 last_loss_opt = valid_loss
             else:
                 epochs_opt_no_decrease += 1
+
+            if verbose:
+                sys.stdout.write('\r[%s] epoch: %d / %d | loss: %f' % (mode, epoch_opt+1, max_epochs, valid_loss))
+                sys.stdout.flush()
+
             epoch_opt += 1
 
         # use best previously found model
@@ -274,7 +296,7 @@ class Controller:
         actions = obs[:][1]
         rewards = obs[:][2]
         new_states = obs[:][3]
-        init_states = Tensor(self.init_states)
+        init_states = self.get_init_state_history()
         # calculate weights
         weights = self.value_model.get_weights(prev_states, new_states, init_states,rewards, self.gamma, normalized=True)
         weights = weights.detach().numpy()
@@ -289,7 +311,7 @@ class Controller:
 
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
                 exp_episodes=10, exp_timesteps=100, exp_gamma_discount=0.9,
-                val_iterations=20, val_min_iterations=10, val_epochs=50, pol_epochs=100,
+                val_epochs=50, pol_epochs=100,
                 eval_episodes=25, eval_timesteps=100, eval_render=True, pickle_name='v0'):
 
         for reps_i in range(iterations):
@@ -311,33 +333,32 @@ class Controller:
                 # Optimize only eta (no batches)
                 self.optimize(mode='eta', model=self.value_model, optimizer=self.value_model.optimizer_eta,
                                 train_dataset=train_dataset, val_dataset=val_dataset,
-                                max_epochs=val_epochs, batch_size=-1, verbose=self.verbose)
+                                max_epochs=val_epochs, batch_size=len(train_dataset), verbose=self.verbose)
                 print("[eta_init] initial eta: ", float(self.value_model.eta))
 
             # Value optimization
-            for val_i in range(val_iterations):
-                print("[value] iteration", val_i+1, "/", val_iterations)
+            value_opt_done = False
+            while not value_opt_done:
                 self.optimize(mode='value', model=self.value_model, optimizer=self.value_model.optimizer_all,
                                 train_dataset=train_dataset, val_dataset=val_dataset,
                                 max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
 
                 kl, valid_kl = self.check_KL()
+                value_opt_done = valid_kl
                 print("[value] KL:", kl, "| eta:", float(self.value_model.eta))
 
-                if valid_kl and (val_i > val_min_iterations):
-                    break
-
-                if (val_i > val_min_iterations) and (kl >= self.value_model.epsilon) :
+                # Optional eta optimization to stay within specified bounds
+                if not valid_kl:
+                    print("[eta] KL out of bounds (KL: %.3f, epsilon: %f)" % (kl, self.value_model.epsilon))
                     self.optimize(mode='eta', model=self.value_model, optimizer=self.value_model.optimizer_eta,
                                     train_dataset=train_dataset, val_dataset=val_dataset,
-                                    max_epochs=val_epochs, batch_size=-1, verbose=self.verbose)
+                                    max_epochs=val_epochs, batch_size=len(train_dataset), verbose=self.verbose)
 
             self.results_dict['eta'].append(float(self.value_model.eta))
 
             # Policy optimization
             # recalculate weights
-            train_dataset, _ = self.get_observation_split(self.get_observation_history(), 0)
-            _ , val_dataset= self.get_observation_split(self.get_observation_history(), 1)
+            train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
 
             self.optimize(mode='policy', model=self.policy_model, optimizer=self.policy_model.optimizer,
                             train_dataset=train_dataset, val_dataset=val_dataset,

@@ -16,6 +16,6 @@ value_model = MLPValue([state_dim, 20, 1], learning_rate=5e-4, epsilon=0.1, acti
 
 model = Controller(name, policy_model, value_model, reset_prob=0.02, history_depth=2, verbose=True,)
 model.set_seeds(41)
-model.train(iterations=30, exp_episodes=50, exp_timesteps=100, val_epochs=200, pol_epochs=200, batch_size=64, val_iterations=3, pickle_name='v0.1')
+model.train(iterations=30, exp_episodes=50, exp_timesteps=100, val_epochs=200, pol_epochs=200, batch_size=64, pickle_name='v0.1')
 
 policy_model.save('../run/' + name + '.pth')
