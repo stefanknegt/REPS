@@ -183,13 +183,13 @@ class Controller:
         for t in range(episodes*max_timesteps):
             if (t % max_timesteps == 0) or episode_done:
                 # reset environment
-                cur_state = self.env_sample.reset()
+                cur_state = self.env_eval.reset()
                 if t != 0:
                     avg_rewards.append(np.mean(np.array(rewards)))
                 rewards = []
             # perform action according to policy
             cur_action = self.get_action_determ(cur_state)
-            cur_state, new_reward, episode_done, info = self.env_sample.step(cur_action)
+            cur_state, new_reward, episode_done, info = self.env_eval.step(cur_action)
             rewards.append(new_reward)
             if render:
                 self.env_eval.render()
@@ -207,7 +207,7 @@ class Controller:
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
-        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 3):
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 10):
             for batch_idx, batch in enumerate(data_loader):
                 prev_states = batch[:][0]
                 actions = batch[:][1]
