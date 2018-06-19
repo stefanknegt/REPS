@@ -1,11 +1,12 @@
 import sys, os
-import torch.nn.functional as F
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from controller import Controller
 from policies.normal_mlp import MLPNormalPolicy
 from values.mlp import MLPValue
 from utils.check_env import environment_check
+
+import torch.nn.functional as F
 
 name = 'Pendulum-v0'
 state_dim, action_dim, action_min, action_max = environment_check(name)

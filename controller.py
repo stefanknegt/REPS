@@ -213,51 +213,46 @@ class Controller:
         return np.mean(np.array(avg_rewards))
 
 
+    def get_model_loss(self, mode, model, dataset):
+        loss = None
+        # prepare data columns
+        prev_states = dataset[:][0]
+        actions = dataset[:][1]
+        rewards = dataset[:][2]
+        new_states = dataset[:][3]
+        cum_sums = dataset[:][4]
+        weights = dataset[:][5]
+        init_states = self.get_init_state_history()
+
+        # calculate appropriate loss
+        if mode == 'value_init':
+            loss = model.mse_loss(prev_states, cum_sums)
+        elif mode in ['value', 'eta']:
+            loss = model.reps_loss(prev_states, new_states, init_states, rewards, self.gamma)
+        elif mode == 'policy':
+            loss = model.get_loss(prev_states, actions, weights)
+
+        return loss
+
+
     def optimize(self, mode, model, optimizer, train_dataset, val_dataset, max_epochs, batch_size, verbose):
         data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-        best_model = None
-        last_loss_opt = None
+        best_model = model.state_dict()
+        last_loss_opt = self.get_model_loss(mode, model, val_dataset)
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
         while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 10):
             for batch_idx, batch in enumerate(data_loader):
-                prev_states = batch[:][0]
-                actions = batch[:][1]
-                rewards = batch[:][2]
-                new_states = batch[:][3]
-                cum_sums = batch[:][4]
-                weights = batch[:][5]
-                init_states = self.get_init_state_history()
-
                 # calculate loss
-                if mode == 'value_init':
-                    loss = model.mse_loss(prev_states, cum_sums)
-                elif mode in ['value', 'eta']:
-                    loss = model.reps_loss(prev_states, new_states, init_states, rewards, self.gamma)
-                elif mode == 'policy':
-                    loss = model.get_loss(prev_states, actions, weights)
-
+                loss = self.get_model_loss(mode, model, batch)
                 # backpropagation step
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
             # evaluate performance on validation set
-            prev_states = val_dataset[:][0]
-            actions = val_dataset[:][1]
-            rewards = val_dataset[:][2]
-            new_states = val_dataset[:][3]
-            cum_sums = val_dataset[:][4]
-            weights = val_dataset[:][5]
-            init_states = self.get_init_state_history()
-
-            if mode == 'value_init':
-                valid_loss = model.mse_loss(prev_states, cum_sums)
-            elif mode in ['value', 'eta']:
-                valid_loss = model.reps_loss(prev_states, new_states, init_states, rewards, self.gamma)
-            elif mode == 'policy':
-                valid_loss = model.get_loss(prev_states, actions, weights)
+            valid_loss = self.get_model_loss(mode, model, val_dataset)
 
             # check if loss is decreasing
             if (last_loss_opt is None) or (valid_loss < last_loss_opt):
