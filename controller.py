@@ -34,6 +34,10 @@ class Controller:
         self.policy_model = policy_model
         self.value_model = value_model
 
+        if torch.cuda.is_available():
+            self.policy_model.cuda()
+            self.value_model.cuda()
+
         # list of [SARSDataset, ...] observation batches
         self.observations = []
         # initial states
@@ -68,6 +72,7 @@ class Controller:
         """
         state = Tensor([state])
         action_tensor = self.policy_model.get_action(state)
+        action_tensor = action_tensor.cpu()
         action_array = action_tensor[0].detach().numpy()
         #print('[actions]: ', np.min(action_array), np.max(action_array))
         return action_array
@@ -82,7 +87,7 @@ class Controller:
         """
         state = Tensor([state])
         action_tensor = self.policy_model.get_action_determ(state)
-        action_array = action_tensor[0].detach().numpy()
+        action_array = action_tensor[0].cpu().detach().numpy()
         return action_array
 
 
@@ -164,28 +169,50 @@ class Controller:
         new_states = observations[:][3]
         cum_sums = observations[:][4]
         weights = self.value_model.get_weights(prev_states, new_states, self.get_init_state_history(), rewards, self.gamma)
-        weights = Tensor(weights.data) # detach weights from gradient graph
+        if not if torch.cuda.is_available():
+            weights = Tensor(weights.data) # detach weights from gradient graph
+
 
         # prepare data splits
         shuffled_indices = torch.randperm(len(observations))
         val_size = round(val_ratio*len(observations))
-        train_indices = shuffled_indices[val_size:]
-        val_indices = shuffled_indices[:val_size-1]
 
-        train_dataset = torch.utils.data.TensorDataset(
-            prev_states.index_select(dim=0, index=train_indices),
-            actions.index_select(dim=0, index=train_indices),
-            rewards.index_select(dim=0, index=train_indices),
-            new_states.index_select(dim=0, index=train_indices),
-            cum_sums.index_select(dim=0, index=train_indices),
-            weights.index_select(dim=0, index=train_indices))
-        val_dataset = torch.utils.data.TensorDataset(
-            prev_states.index_select(dim=0, index=val_indices),
-            actions.index_select(dim=0, index=val_indices),
-            rewards.index_select(dim=0, index=val_indices),
-            new_states.index_select(dim=0, index=val_indices),
-            cum_sums.index_select(dim=0, index=val_indices),
-            weights.index_select(dim=0, index=val_indices))
+        if torch.cuda.is_available():
+            train_indices = shuffled_indices[val_size:].cuda()
+            val_indices = shuffled_indices[:val_size-1].cuda()
+        else:
+            train_indices = shuffled_indices[val_size:]
+            val_indices = shuffled_indices[:val_size-1]
+        if torch.cuda.is_available():
+            train_dataset = torch.utils.data.TensorDataset(
+                prev_states.index_select(dim=0, index=train_indices).cuda(),
+                actions.index_select(dim=0, index=train_indices).cuda(),
+                rewards.index_select(dim=0, index=train_indices).cuda(),
+                new_states.index_select(dim=0, index=train_indices).cuda(),
+                cum_sums.index_select(dim=0, index=train_indices).cuda(),
+                weights.index_select(dim=0, index=train_indices).cuda())
+            val_dataset = torch.utils.data.TensorDataset(
+                prev_states.index_select(dim=0, index=val_indices).cuda(),
+                actions.index_select(dim=0, index=val_indices).cuda(),
+                rewards.index_select(dim=0, index=val_indices).cuda(),
+                new_states.index_select(dim=0, index=val_indices).cuda(),
+                cum_sums.index_select(dim=0, index=val_indices).cuda(),
+                weights.index_select(dim=0, index=val_indices).cuda())
+        else:
+            train_dataset = torch.utils.data.TensorDataset(
+                prev_states.index_select(dim=0, index=train_indices),
+                actions.index_select(dim=0, index=train_indices),
+                rewards.index_select(dim=0, index=train_indices),
+                new_states.index_select(dim=0, index=train_indices),
+                cum_sums.index_select(dim=0, index=train_indices),
+                weights.index_select(dim=0, index=train_indices))
+            val_dataset = torch.utils.data.TensorDataset(
+                prev_states.index_select(dim=0, index=val_indices),
+                actions.index_select(dim=0, index=val_indices),
+                rewards.index_select(dim=0, index=val_indices),
+                new_states.index_select(dim=0, index=val_indices),
+                cum_sums.index_select(dim=0, index=val_indices),
+                weights.index_select(dim=0, index=val_indices))
 
         return train_dataset, val_dataset
 
@@ -236,7 +263,10 @@ class Controller:
 
 
     def optimize(self, mode, model, optimizer, train_dataset, val_dataset, max_epochs, batch_size, verbose):
-        data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+        if torch.cuda.is_available():
+            data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+        else:
+            data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
         best_model = model.state_dict()
         last_loss_opt = self.get_model_loss(mode, model, val_dataset)
         epochs_opt_no_decrease = 0
@@ -248,7 +278,7 @@ class Controller:
                 loss = self.get_model_loss(mode, model, batch)
                 # backpropagation step
                 optimizer.zero_grad()
-                loss.backward()
+                loss.backward(retain_graph=True)
                 optimizer.step()
 
             # evaluate performance on validation set
@@ -294,7 +324,7 @@ class Controller:
         init_states = self.get_init_state_history()
         # calculate weights
         weights = self.value_model.get_weights(prev_states, new_states, init_states,rewards, self.gamma, normalized=True)
-        weights = weights.detach().numpy()
+        weights = weights.cpu().detach().numpy()
 
         kl = np.nansum(weights[np.nonzero(weights)] * np.log(weights[np.nonzero(weights)] * weights.size))
         kl_err = np.abs(kl - self.value_model.epsilon)

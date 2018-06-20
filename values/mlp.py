@@ -21,12 +21,18 @@ class MLPValue(torch.nn.Module):
 
         self.epsilon = epsilon
 
+        if torch.cuda.is_available():
+            self.eta.cuda()
+
         self.optimizer_all = torch.optim.Adam(self.parameters(), lr=learning_rate)
         self.optimizer_eta = torch.optim.Adam([self.eta], lr=learning_rate*100)
 
 
     def forward(self, states):
-        out = states
+        if torch.cuda.is_available():
+            out = states.cuda()
+        else:
+            out = states
         for i in range(len(self.layers) - 1):
             out = self.activation(self.layers[i](out))
         out = self.layers[-1](out)
@@ -45,11 +51,20 @@ class MLPValue(torch.nn.Module):
         end_values = self(end_states)
         init_values = self(init_states)
 
+        if torch.cuda.is_available():
+            begin_values = self(begin_states).cuda()
+            end_values = self(end_states).cuda()
+            init_values = self(init_states).cuda()
+
         bell_error = rewards + gamma * end_values + (1 - gamma) * torch.mean(init_values) - begin_values
         max_val = torch.max(bell_error)
         weights = torch.exp((bell_error - max_val) / self.eta)
         if normalized:
             weights = weights / torch.sum(weights)
+
+
+        if torch.cuda.is_available():
+            weights = weights.cuda()
         return weights
 
 
@@ -153,5 +168,3 @@ class MLPValue(torch.nn.Module):
     #     loss.backward()
     #     self.optimizer.step()
     #     return loss.data.item()
-
-

@@ -27,11 +27,17 @@ class MLPNormalPolicy(torch.nn.Module):
         # Reset mu weights (to make mean around 0 at start) - default set to 1e-8
         self.reset(weight_range=init_value, bias_range=init_value)
 
+        if torch.cuda.is_available():
+            self.sigma.cuda()
+
     def forward(self, states):
         return self.get_action(states)
 
     def get_mu(self, states):
-        x = states
+        if torch.cuda.is_available():
+            x = states.cuda()
+        else:
+            x = states
         for i in range(len(self.layers) - 1):
             x = self.activation(self.layers[i](x))
         x = self.layers[-1](x)

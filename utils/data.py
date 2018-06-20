@@ -28,8 +28,12 @@ class SARSDataset(Dataset):
         return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx], self.cum_sums[idx]
 
     def _dict_to_tensor(self, sars_data, key):
+
         if len(sars_data) < 1:
-            return torch.Tensor([])
+            if torch.cuda.is_available():
+                return torch.Tensor([]).cuda()
+            else:
+                return torch.Tensor([])
 
         # get data dimensionality
         dim = None
@@ -42,11 +46,15 @@ class SARSDataset(Dataset):
             dim = len(sars_data[0][key])
         # init result matrix of appropriate size
         res = torch.zeros((len(sars_data), dim))
+        if torch.cuda.is_available():
+            res = torch.zeros((len(sars_data), dim)).cuda()
         for sars_idx, sars in enumerate(sars_data):
             # check for scalars
             sars_datum = sars[key] if dim > 1 else [float(sars[key])]
             # cast to Tensor
             res[sars_idx] = torch.Tensor(sars_datum)
+            if torch.cuda.is_available():
+                res[sars_idx] = torch.Tensor(sars_datum).cuda()
         return res
 
     def append(self, sars_data):
