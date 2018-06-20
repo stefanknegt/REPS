@@ -342,7 +342,9 @@ class Controller:
         for reps_i in range(iterations):
             self.results_dict['iteration'].append(reps_i + 1)
 
-            if self.verbose: print("[REPS] iteration", reps_i+1, "/", iterations)
+            if self.verbose:
+                print("[REPS] iteration", reps_i+1, "/", iterations)
+                print("[SIGMA] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
