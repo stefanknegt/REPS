@@ -7,15 +7,15 @@ from policies.normal_mlp import MLPNormalPolicy
 from values.mlp import MLPValue
 from utils.check_env import environment_check
 
-name = 'Pendulum-v0'
+name = 'Reacher-v2'
 state_dim, action_dim, action_min, action_max = environment_check(name)
 
 hidden_dim = 20
-policy_model = MLPNormalPolicy([state_dim, 15, 45, 1], sigma=4, learning_rate=1e-3, act_bound=2, activation=F.tanh)
-value_model = MLPValue([state_dim, 15, 45, 1], learning_rate=1e-3, activation=F.tanh)
+policy_model = MLPNormalPolicy([state_dim, 45, 90, 2], sigma=2, learning_rate=1e-3, act_bound=1, activation=F.tanh)
+value_model = MLPValue([state_dim, 45, 90, 1], learning_rate=1e-3, activation=F.tanh)
 
-model = Controller(name, policy_model, value_model, reset_prob=0.02, history_depth=1, verbose=True,)
+model = Controller(name, policy_model, value_model, reset_prob=0.01, history_depth=2, verbose=True, cuda=True)
 model.set_seeds(41)
-model.train(iterations=30, exp_episodes=20, exp_timesteps=250, val_epochs=500, pol_epochs=500, batch_size=64, val_iterations=1)
+model.train(iterations=30, exp_episodes=25, exp_timesteps=1000, val_epochs=500, pol_epochs=500, batch_size=128)
 
 policy_model.save('../run/' + name + '.pth')

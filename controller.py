@@ -1,6 +1,6 @@
 from utils.data import *
 from utils.average_env import make_average_env
-
+import time
 import gym
 import random
 import numpy as np
@@ -18,7 +18,7 @@ class Controller:
     """
 
     def __init__(self, env_name, policy_model, value_model,
-                reset_prob=0.02, history_depth=1, verbose=False):
+                reset_prob=0.02, history_depth=1, verbose=False, cuda=False):
         # init gym environment
         env = gym.make(env_name)
         self.env_name = env_name
@@ -34,16 +34,18 @@ class Controller:
         self.policy_model = policy_model
         self.value_model = value_model
 
-        if torch.cuda.is_available():
-            self.policy_model.cuda()
-            self.value_model.cuda()
-
         # list of [SARSDataset, ...] observation batches
         self.observations = []
+
         # initial states
         self.init_states = []
+        self.init_states_tensor = None
+
         # history depth
         self.history_depth = history_depth
+
+        # Use GPU
+        self.cuda = cuda
 
         # set transition probability to initial state (gamma)
         self.gamma = 1 - reset_prob
@@ -72,7 +74,6 @@ class Controller:
         """
         state = Tensor([state])
         action_tensor = self.policy_model.get_action(state)
-        action_tensor = action_tensor.cpu()
         action_array = action_tensor[0].detach().numpy()
         #print('[actions]: ', np.min(action_array), np.max(action_array))
         return action_array
@@ -87,7 +88,7 @@ class Controller:
         """
         state = Tensor([state])
         action_tensor = self.policy_model.get_action_determ(state)
-        action_array = action_tensor[0].cpu().detach().numpy()
+        action_array = action_tensor[0].detach().numpy()
         return action_array
 
 
@@ -135,7 +136,7 @@ class Controller:
         # remove old and add new observations
         if len(self.observations) == self.history_depth:
             self.observations = self.observations[1:]
-        self.observations.append(SARSDataset(new_observations))
+        self.observations.append(SARSDataset(new_observations, cuda=self.cuda))
 
         # remove old and add new initial state observations
         if len(self.init_states) == self.history_depth:
@@ -168,51 +169,34 @@ class Controller:
         rewards = observations[:][2]
         new_states = observations[:][3]
         cum_sums = observations[:][4]
-        weights = self.value_model.get_weights(prev_states, new_states, self.get_init_state_history(), rewards, self.gamma)
-        if not if torch.cuda.is_available():
-            weights = Tensor(weights.data) # detach weights from gradient graph
-
+        weights = self.value_model.get_weights(prev_states, new_states, self.init_states_tensor, rewards, self.gamma)
 
         # prepare data splits
         shuffled_indices = torch.randperm(len(observations))
         val_size = round(val_ratio*len(observations))
 
-        if torch.cuda.is_available():
-            train_indices = shuffled_indices[val_size:].cuda()
-            val_indices = shuffled_indices[:val_size-1].cuda()
-        else:
-            train_indices = shuffled_indices[val_size:]
-            val_indices = shuffled_indices[:val_size-1]
-        if torch.cuda.is_available():
-            train_dataset = torch.utils.data.TensorDataset(
-                prev_states.index_select(dim=0, index=train_indices).cuda(),
-                actions.index_select(dim=0, index=train_indices).cuda(),
-                rewards.index_select(dim=0, index=train_indices).cuda(),
-                new_states.index_select(dim=0, index=train_indices).cuda(),
-                cum_sums.index_select(dim=0, index=train_indices).cuda(),
-                weights.index_select(dim=0, index=train_indices).cuda())
-            val_dataset = torch.utils.data.TensorDataset(
-                prev_states.index_select(dim=0, index=val_indices).cuda(),
-                actions.index_select(dim=0, index=val_indices).cuda(),
-                rewards.index_select(dim=0, index=val_indices).cuda(),
-                new_states.index_select(dim=0, index=val_indices).cuda(),
-                cum_sums.index_select(dim=0, index=val_indices).cuda(),
-                weights.index_select(dim=0, index=val_indices).cuda())
-        else:
-            train_dataset = torch.utils.data.TensorDataset(
-                prev_states.index_select(dim=0, index=train_indices),
-                actions.index_select(dim=0, index=train_indices),
-                rewards.index_select(dim=0, index=train_indices),
-                new_states.index_select(dim=0, index=train_indices),
-                cum_sums.index_select(dim=0, index=train_indices),
-                weights.index_select(dim=0, index=train_indices))
-            val_dataset = torch.utils.data.TensorDataset(
-                prev_states.index_select(dim=0, index=val_indices),
-                actions.index_select(dim=0, index=val_indices),
-                rewards.index_select(dim=0, index=val_indices),
-                new_states.index_select(dim=0, index=val_indices),
-                cum_sums.index_select(dim=0, index=val_indices),
-                weights.index_select(dim=0, index=val_indices))
+        weights = weights.detach()
+        train_indices = shuffled_indices[val_size:]
+        val_indices = shuffled_indices[:val_size - 1]
+
+        if self.cuda:
+            train_indices = train_indices.cuda()
+            val_indices = val_indices.cuda()
+
+        train_dataset = torch.utils.data.TensorDataset(
+            prev_states.index_select(dim=0, index=train_indices),
+            actions.index_select(dim=0, index=train_indices),
+            rewards.index_select(dim=0, index=train_indices),
+            new_states.index_select(dim=0, index=train_indices),
+            cum_sums.index_select(dim=0, index=train_indices),
+            weights.index_select(dim=0, index=train_indices))
+        val_dataset = torch.utils.data.TensorDataset(
+            prev_states.index_select(dim=0, index=val_indices),
+            actions.index_select(dim=0, index=val_indices),
+            rewards.index_select(dim=0, index=val_indices),
+            new_states.index_select(dim=0, index=val_indices),
+            cum_sums.index_select(dim=0, index=val_indices),
+            weights.index_select(dim=0, index=val_indices))
 
         return train_dataset, val_dataset
 
@@ -249,13 +233,13 @@ class Controller:
         new_states = dataset[:][3]
         cum_sums = dataset[:][4]
         weights = dataset[:][5]
-        init_states = self.get_init_state_history()
+
 
         # calculate appropriate loss
         if mode == 'value_init':
             loss = model.mse_loss(prev_states, cum_sums)
         elif mode in ['value', 'eta']:
-            loss = model.reps_loss(prev_states, new_states, init_states, rewards, self.gamma)
+            loss = model.reps_loss(prev_states, new_states, self.init_states_tensor, rewards, self.gamma)
         elif mode == 'policy':
             loss = model.get_loss(prev_states, actions, weights)
 
@@ -263,7 +247,7 @@ class Controller:
 
 
     def optimize(self, mode, model, optimizer, train_dataset, val_dataset, max_epochs, batch_size, verbose):
-        if torch.cuda.is_available():
+        if self.cuda:
             data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
         else:
             data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
@@ -272,7 +256,7 @@ class Controller:
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
-        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 10):
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 50):
             for batch_idx, batch in enumerate(data_loader):
                 # calculate loss
                 loss = self.get_model_loss(mode, model, batch)
@@ -321,10 +305,13 @@ class Controller:
         actions = obs[:][1]
         rewards = obs[:][2]
         new_states = obs[:][3]
-        init_states = self.get_init_state_history()
+
         # calculate weights
-        weights = self.value_model.get_weights(prev_states, new_states, init_states,rewards, self.gamma, normalized=True)
-        weights = weights.cpu().detach().numpy()
+        weights = self.value_model.get_weights(prev_states, new_states, self.init_states_tensor, rewards, self.gamma, normalized=True)
+        if self.cuda:
+            weights = weights.cpu()
+
+        weights = weights.detach().numpy()
 
         kl = np.nansum(weights[np.nonzero(weights)] * np.log(weights[np.nonzero(weights)] * weights.size))
         kl_err = np.abs(kl - self.value_model.epsilon)
@@ -337,50 +324,50 @@ class Controller:
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
                 exp_episodes=10, exp_timesteps=100, exp_gamma_discount=0.9,
                 val_epochs=50, pol_epochs=100,
-                eval_episodes=25, eval_timesteps=100, eval_render=True, pickle_name='v0'):
+                eval_episodes=25, eval_timesteps=200, render_step=2, pickle_name='v0'):
 
         for reps_i in range(iterations):
             self.results_dict['iteration'].append(reps_i + 1)
 
             if self.verbose:
                 print("[REPS] iteration", reps_i+1, "/", iterations)
-                print("[SIGMA] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
+                print("[sigma] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
                 self.explore(exp_episodes, exp_timesteps, exp_gamma_discount)
+
+            init_states = self.get_init_state_history()
+            self.init_states_tensor = Tensor(init_states)
+
+            if self.cuda:
+                self.policy_model.cuda()
+                self.value_model.cuda()
+                self.init_states_tensor = self.init_states_tensor.cuda()
+
             train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
 
             # Special actions for initialisation iteration
             if reps_i == 0:
                 # Optimize V and eta
                 self.optimize(mode='value_init', model=self.value_model, optimizer=self.value_model.optimizer_all,
-                                train_dataset=train_dataset, val_dataset=val_dataset,
-                                max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
+                              train_dataset=train_dataset, val_dataset=val_dataset,
+                              max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
                 # Optimize only eta (no batches)
                 self.optimize(mode='eta', model=self.value_model, optimizer=self.value_model.optimizer_eta,
-                                train_dataset=train_dataset, val_dataset=val_dataset,
-                                max_epochs=val_epochs, batch_size=len(train_dataset), verbose=self.verbose)
-                print("[eta_init] initial eta: ", float(self.value_model.eta))
+                              train_dataset=train_dataset, val_dataset=val_dataset,
+                              max_epochs=val_epochs, batch_size=len(train_dataset), verbose=self.verbose)
+                if self.verbose:
+                    print("[eta_init] initial eta: ", float(self.value_model.eta))
 
             # Value optimization
-            value_opt_done = False
-            while not value_opt_done:
-                self.optimize(mode='value', model=self.value_model, optimizer=self.value_model.optimizer_all,
-                                train_dataset=train_dataset, val_dataset=val_dataset,
-                                max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
+            self.optimize(mode='value', model=self.value_model, optimizer=self.value_model.optimizer_all,
+                          train_dataset=train_dataset, val_dataset=val_dataset,
+                          max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
 
-                kl, valid_kl = self.check_KL()
-                value_opt_done = valid_kl
+            kl, valid_kl = self.check_KL()
+            if self.verbose:
                 print("[value] KL:", kl, "| eta:", float(self.value_model.eta))
-
-                # Optional eta optimization to stay within specified bounds
-                if not valid_kl:
-                    print("[eta] KL out of bounds (KL: %.3f, epsilon: %f)" % (kl, self.value_model.epsilon))
-                    self.optimize(mode='eta', model=self.value_model, optimizer=self.value_model.optimizer_eta,
-                                    train_dataset=train_dataset, val_dataset=val_dataset,
-                                    max_epochs=val_epochs, batch_size=len(train_dataset), verbose=self.verbose)
-
             self.results_dict['eta'].append(float(self.value_model.eta))
 
             # Policy optimization
@@ -388,15 +375,20 @@ class Controller:
             train_dataset, val_dataset = self.get_observation_split(self.get_observation_history(), val_ratio)
 
             self.optimize(mode='policy', model=self.policy_model, optimizer=self.policy_model.optimizer,
-                            train_dataset=train_dataset, val_dataset=val_dataset,
-                            max_epochs=pol_epochs, batch_size=batch_size, verbose=self.verbose)
+                          train_dataset=train_dataset, val_dataset=val_dataset,
+                          max_epochs=pol_epochs, batch_size=batch_size, verbose=self.verbose)
+
+            if self.cuda:
+                self.policy_model.cpu()
+                self.value_model.cpu()
 
             # Evaluation
-            eval_render = reps_i % 2 != 0
-            avg_reward = self.evaluate(episodes=eval_episodes, max_timesteps=eval_timesteps, render=eval_render)
-            print("[eval] average reward:", avg_reward)
+            render = render_step != 0 and (reps_i + 1) % render_step == 0
+            avg_reward = self.evaluate(episodes=eval_episodes, max_timesteps=eval_timesteps, render=render)
             self.results_dict['rewards'].append(avg_reward)
-            print()
+            if self.verbose:
+                print("[eval] average reward:", avg_reward)
+                print()
 
             with open('results/'+self.env_name +'_'+ pickle_name + '.pickle', 'wb') as handle:
                 pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)

@@ -10,16 +10,16 @@ class SARSDataset(Dataset):
     Container class for state, action, reward, new state observations.
     """
 
-    def __init__(self, sars_data=None):
+    def __init__(self, sars_data=None, cuda=False):
         """
 
         :param sars_data: [{'prev_state': array, 'action': array, 'reward': array, 'new_state': array, 'cum_sum': array}, ... ]
         """
-        self.prev_states = self._dict_to_tensor(sars_data, 'prev_state') if sars_data is not None else None
-        self.actions = self._dict_to_tensor(sars_data, 'action') if sars_data is not None else None
-        self.rewards = self._dict_to_tensor(sars_data, 'reward') if sars_data is not None else None
-        self.new_states = self._dict_to_tensor(sars_data, 'new_state') if sars_data is not None else None
-        self.cum_sums = self._dict_to_tensor(sars_data, 'cum_sum') if sars_data is not None else None
+        self.prev_states = self._dict_to_tensor(sars_data, 'prev_state', cuda) if sars_data is not None else None
+        self.actions = self._dict_to_tensor(sars_data, 'action', cuda) if sars_data is not None else None
+        self.rewards = self._dict_to_tensor(sars_data, 'reward', cuda) if sars_data is not None else None
+        self.new_states = self._dict_to_tensor(sars_data, 'new_state', cuda) if sars_data is not None else None
+        self.cum_sums = self._dict_to_tensor(sars_data, 'cum_sum', cuda) if sars_data is not None else None
 
     def __len__(self):
         return len(self.prev_states) if self.prev_states is not None else 0
@@ -27,10 +27,10 @@ class SARSDataset(Dataset):
     def __getitem__(self, idx):
         return self.prev_states[idx], self.actions[idx], self.rewards[idx], self.new_states[idx], self.cum_sums[idx]
 
-    def _dict_to_tensor(self, sars_data, key):
+    def _dict_to_tensor(self, sars_data, key, cuda=False):
 
         if len(sars_data) < 1:
-            if torch.cuda.is_available():
+            if cuda:
                 return torch.Tensor([]).cuda()
             else:
                 return torch.Tensor([])
@@ -46,14 +46,14 @@ class SARSDataset(Dataset):
             dim = len(sars_data[0][key])
         # init result matrix of appropriate size
         res = torch.zeros((len(sars_data), dim))
-        if torch.cuda.is_available():
+        if cuda:
             res = torch.zeros((len(sars_data), dim)).cuda()
         for sars_idx, sars in enumerate(sars_data):
             # check for scalars
             sars_datum = sars[key] if dim > 1 else [float(sars[key])]
             # cast to Tensor
             res[sars_idx] = torch.Tensor(sars_datum)
-            if torch.cuda.is_available():
+            if cuda:
                 res[sars_idx] = torch.Tensor(sars_datum).cuda()
         return res
 

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import time
 from torch import Tensor
 from torch.distributions import MultivariateNormal
 from torch.utils.data.dataloader import DataLoader
@@ -27,17 +28,11 @@ class MLPNormalPolicy(torch.nn.Module):
         # Reset mu weights (to make mean around 0 at start) - default set to 1e-8
         self.reset(weight_range=init_value, bias_range=init_value)
 
-        if torch.cuda.is_available():
-            self.sigma.cuda()
 
     def forward(self, states):
         return self.get_action(states)
 
-    def get_mu(self, states):
-        if torch.cuda.is_available():
-            x = states.cuda()
-        else:
-            x = states
+    def get_mu(self, x):
         for i in range(len(self.layers) - 1):
             x = self.activation(self.layers[i](x))
         x = self.layers[-1](x)
@@ -61,10 +56,13 @@ class MLPNormalPolicy(torch.nn.Module):
         return mu
 
     def get_loss(self, begin_states, actions, weights):
+
         mu = self.get_mu(begin_states)
         distr = MultivariateNormal(mu, torch.diag(self.sigma))
         log_likelihood = distr.log_prob(actions)
+
         loss = - torch.dot(weights.squeeze(), log_likelihood.squeeze())
+
         return loss
 
     def reset(self, weight_range=1e-8, bias_range=1e-8):
