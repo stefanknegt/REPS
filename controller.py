@@ -169,7 +169,7 @@ class Controller:
         new_states = observations[:][3]
         cum_sums = observations[:][4]
         weights = self.value_model.get_weights(prev_states, new_states, self.get_init_state_history(), rewards, self.gamma)
-        if not if torch.cuda.is_available():
+        if not torch.cuda.is_available():
             weights = Tensor(weights.data) # detach weights from gradient graph
 
 
@@ -272,7 +272,7 @@ class Controller:
         epochs_opt_no_decrease = 0
         epoch_opt = 0
 
-        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 10):
+        while (epoch_opt < max_epochs) and (epochs_opt_no_decrease < 50):
             for batch_idx, batch in enumerate(data_loader):
                 # calculate loss
                 loss = self.get_model_loss(mode, model, batch)
@@ -285,7 +285,7 @@ class Controller:
             valid_loss = self.get_model_loss(mode, model, val_dataset)
 
             # check if loss is decreasing
-            if (last_loss_opt is None) or (valid_loss < last_loss_opt):
+            if valid_loss < last_loss_opt:
                 best_model = model.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = valid_loss
@@ -344,7 +344,7 @@ class Controller:
 
             if self.verbose:
                 print("[REPS] iteration", reps_i+1, "/", iterations)
-                print("[SIGMA] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
+                print("[sigma] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
