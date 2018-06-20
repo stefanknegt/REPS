@@ -169,7 +169,9 @@ class Controller:
         rewards = observations[:][2]
         new_states = observations[:][3]
         cum_sums = observations[:][4]
+
         weights = self.value_model.get_weights(prev_states, new_states, self.init_states_tensor, rewards, self.gamma)
+
 
         # prepare data splits
         shuffled_indices = torch.randperm(len(observations))
@@ -269,7 +271,7 @@ class Controller:
             valid_loss = self.get_model_loss(mode, model, val_dataset)
 
             # check if loss is decreasing
-            if (last_loss_opt is None) or (valid_loss < last_loss_opt):
+            if valid_loss < last_loss_opt:
                 best_model = model.state_dict()
                 epochs_opt_no_decrease = 0
                 last_loss_opt = valid_loss
