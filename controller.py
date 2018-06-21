@@ -328,12 +328,14 @@ class Controller:
                 val_epochs=50, pol_epochs=100,
                 eval_episodes=25, eval_timesteps=200, render_step=2, pickle_name='v0'):
 
+        best_reward = None
+        iters_no_increase = 0
+
         for reps_i in range(iterations):
             self.results_dict['iteration'].append(reps_i + 1)
 
             if self.verbose:
                 print("[REPS] iteration", reps_i+1, "/", iterations)
-                print("[sigma] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
@@ -380,6 +382,9 @@ class Controller:
                           train_dataset=train_dataset, val_dataset=val_dataset,
                           max_epochs=pol_epochs, batch_size=batch_size, verbose=self.verbose)
 
+            if self.verbose:
+                print("[policy] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
+
             if self.cuda:
                 self.policy_model.cpu()
                 self.value_model.cpu()
@@ -390,7 +395,22 @@ class Controller:
             self.results_dict['rewards'].append(avg_reward)
             if self.verbose:
                 print("[eval] average reward:", avg_reward)
-                print()
 
-            with open('results/'+self.env_name +'_'+ pickle_name + '.pickle', 'wb') as handle:
-                pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            if (best_reward is None) or (avg_reward > best_reward):
+                iters_no_increase = 0
+                best_reward = avg_reward
+                pickle_path = 'results/'+self.env_name +'_'+ pickle_name + '.pickle'
+                with open(pickle_path, 'wb') as handle:
+                    pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                if self.verbose:
+                    print('[eval] saved best performing controller to "%s"' % (pickle_path))
+            else:
+                iters_no_increase += 1
+                if iters_no_increase > 50:
+                    if self.verbose:
+                        print('[eval] no improvement in last 50 iterations')
+                    break
+
+            if self.verbose: print()
+
+        return best_reward
