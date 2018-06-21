@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import time
+import math
 from torch import Tensor
 from torch.distributions import MultivariateNormal
 from torch.utils.data.dataloader import DataLoader
@@ -56,10 +57,12 @@ class MLPNormalPolicy(torch.nn.Module):
         return mu
 
     def get_loss(self, begin_states, actions, weights):
-
         mu = self.get_mu(begin_states)
-        distr = MultivariateNormal(mu, torch.diag(self.sigma))
-        log_likelihood = distr.log_prob(actions)
+        diff = actions - mu
+        log_determinant = -0.5 * torch.sum(torch.log(2 * math.pi * self.sigma))
+        exp_part = -0.5 * (diff * diff / self.sigma).sum(-1, keepdim=True)
+
+        log_likelihood = log_determinant + exp_part
 
         loss = - torch.dot(weights.squeeze(), log_likelihood.squeeze())
 
