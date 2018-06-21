@@ -221,7 +221,6 @@ class Controller:
             rewards.append(new_reward)
             if render:
                 self.env_eval.render()
-            avg_rewards.append(np.mean(np.array(rewards)))
 
         return np.mean(np.array(avg_rewards))
 
