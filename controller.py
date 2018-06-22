@@ -253,7 +253,7 @@ class Controller:
             data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
         else:
             data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-        best_model = torch.save(model.state_dict(), best_model_path)
+        torch.save(model.state_dict(), best_model_path)
         last_loss_opt = self.get_model_loss(mode, model, val_dataset)
         epochs_opt_no_decrease = 0
         epoch_opt = 0
@@ -272,7 +272,7 @@ class Controller:
 
             # check if loss is decreasing
             if valid_loss < last_loss_opt:
-                best_model = torch.save(model.state_dict(), best_model_path)
+                torch.save(model.state_dict(), best_model_path)
                 epochs_opt_no_decrease = 0
                 last_loss_opt = valid_loss
             else:
