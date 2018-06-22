@@ -399,9 +399,14 @@ class Controller:
             if (best_reward is None) or (avg_reward > best_reward):
                 iters_no_increase = 0
                 best_reward = avg_reward
-                pickle_path = 'results/'+self.env_name + '_' + pickle_name + '.pickle'
+                pickle_path = 'results/'+self.env_name +'_'+ pickle_name + '.pickle'
                 with open(pickle_path, 'wb') as handle:
                     pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            if (best_reward is None) or (avg_reward > best_reward):
+                iters_no_increase = 0
+                best_reward = avg_reward
+                self.policy_model.save('../run/' + self.env_name + '.pth')
+
                 if self.verbose:
                     print('[eval] saved best performing controller to "%s"' % (pickle_path))
             else:
