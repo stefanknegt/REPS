@@ -247,12 +247,13 @@ class Controller:
         return loss
 
 
-    def optimize(self, mode, model, optimizer, train_dataset, val_dataset, max_epochs, batch_size, verbose):
+    def optimize(self, mode, model, optimizer, train_dataset, val_dataset, max_epochs, batch_size, pickle_name):
+        best_model_path = 'results/'+self.env_name + '_' + mode + '_' + pickle_name + '.pth'
         if self.cuda:
             data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
         else:
             data_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
-        best_model = model.state_dict()
+        best_model = torch.save(model.state_dict(), best_model_path)
         last_loss_opt = self.get_model_loss(mode, model, val_dataset)
         epochs_opt_no_decrease = 0
         epoch_opt = 0
@@ -271,20 +272,20 @@ class Controller:
 
             # check if loss is decreasing
             if valid_loss < last_loss_opt:
-                best_model = model.state_dict()
+                best_model = torch.save(model.state_dict(), best_model_path)
                 epochs_opt_no_decrease = 0
                 last_loss_opt = valid_loss
             else:
                 epochs_opt_no_decrease += 1
 
-            if verbose:
+            if self.verbose:
                 sys.stdout.write('\r[%s] epoch: %d / %d | loss: %f' % (mode, epoch_opt+1, max_epochs, valid_loss))
                 sys.stdout.flush()
 
             epoch_opt += 1
 
         # use best previously found model
-        model.load_state_dict(best_model)
+        model.load_state_dict(torch.load(best_model_path))
 
         #save results in dict:
         if mode == 'policy':
@@ -295,7 +296,7 @@ class Controller:
             else:
                 self.results_dict['value_loss'].append(float(valid_loss))
 
-        if verbose:
+        if self.verbose:
             sys.stdout.write('\r[%s] training complete (%d epochs, %f best loss)' % (mode, epoch_opt, last_loss_opt) + (' ' * (len(str(max_epochs))) * 2 + '\n'))
 
 
@@ -355,18 +356,18 @@ class Controller:
                 # Optimize V and eta
                 self.optimize(mode='value_init', model=self.value_model, optimizer=self.value_model.optimizer_all,
                               train_dataset=train_dataset, val_dataset=val_dataset,
-                              max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
+                              max_epochs=val_epochs, batch_size=batch_size, pickle_name=pickle_name)
                 # Optimize only eta (no batches)
                 self.optimize(mode='eta', model=self.value_model, optimizer=self.value_model.optimizer_eta,
                               train_dataset=train_dataset, val_dataset=val_dataset,
-                              max_epochs=val_epochs, batch_size=len(train_dataset), verbose=self.verbose)
+                              max_epochs=val_epochs, batch_size=len(train_dataset), pickle_name=pickle_name)
                 if self.verbose:
                     print("[eta_init] initial eta: ", float(self.value_model.eta))
 
             # Value optimization
             self.optimize(mode='value', model=self.value_model, optimizer=self.value_model.optimizer_all,
                           train_dataset=train_dataset, val_dataset=val_dataset,
-                          max_epochs=val_epochs, batch_size=batch_size, verbose=self.verbose)
+                          max_epochs=val_epochs, batch_size=batch_size, pickle_name=pickle_name)
 
             kl, valid_kl = self.check_KL()
             if self.verbose:
@@ -379,7 +380,7 @@ class Controller:
 
             self.optimize(mode='policy', model=self.policy_model, optimizer=self.policy_model.optimizer,
                           train_dataset=train_dataset, val_dataset=val_dataset,
-                          max_epochs=pol_epochs, batch_size=batch_size, verbose=self.verbose)
+                          max_epochs=pol_epochs, batch_size=batch_size, pickle_name=pickle_name)
 
             if self.verbose:
                 print("[policy] mean sigma is now: ", float(torch.mean(self.policy_model.sigma)))
@@ -398,7 +399,7 @@ class Controller:
             if (best_reward is None) or (avg_reward > best_reward):
                 iters_no_increase = 0
                 best_reward = avg_reward
-                pickle_path = 'results/'+self.env_name +'_'+ pickle_name + '.pickle'
+                pickle_path = 'results/'+self.env_name + '_' + pickle_name + '.pickle'
                 with open(pickle_path, 'wb') as handle:
                     pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
                 if self.verbose:
