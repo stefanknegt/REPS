@@ -101,7 +101,7 @@ class Controller:
             obs_dicts[obs_idx]['cum_sum'] = cum_sum
 
 
-    def explore(self, episodes, max_timesteps, gamma_discount):
+    def explore(self, timesteps, gamma_discount):
         # initialize exploration
         new_observations = []
         new_init_states = []
@@ -109,9 +109,9 @@ class Controller:
         episode_done = False
         cur_state = self.env_sample.reset()
 
-        for t in range(episodes*max_timesteps):
+        for t in range(timesteps):
             # reset environment
-            if (t % max_timesteps == 0) or episode_done:
+            if episode_done:
                 # calculate cumulative sum
                 self.set_cumulative_sum(new_observations, episode_t, gamma_discount)
                 episode_t = 0
@@ -144,7 +144,7 @@ class Controller:
         self.init_states.append(new_init_states)
 
         if self.verbose:
-            print("[explore] added %d observations " % (len(new_observations)))
+            print("[explore] added %d observations (%d episodes)" % (len(new_observations), len(new_init_states)))
         return new_observations
 
 
@@ -203,26 +203,23 @@ class Controller:
         return train_dataset, val_dataset
 
 
-    def evaluate(self, episodes, max_timesteps, render):
-        cur_state = self.env_eval.reset()
-        avg_rewards = []
-        rewards = []
-        episode_done = False
-        for t in range(episodes*max_timesteps):
-            if (t % max_timesteps == 0) or episode_done:
-                # reset environment
-                cur_state = self.env_eval.reset()
-                if t != 0:
-                    avg_rewards.append(np.mean(np.array(rewards)))
-                rewards = []
-            # perform action according to policy
-            cur_action = self.get_action_determ(cur_state)
-            cur_state, new_reward, episode_done, info = self.env_eval.step(cur_action)
-            rewards.append(new_reward)
-            if render:
-                self.env_eval.render()
+    def evaluate(self, episodes, render):
+        total_rewards = []
+        for e in range(episodes):
+            # reset environment
+            cur_state = self.env_eval.reset()
+            ep_rewards = []
+            episode_done = False
+            while not episode_done:
+                # perform action according to policy
+                cur_action = self.get_action_determ(cur_state)
+                cur_state, new_reward, episode_done, info = self.env_eval.step(cur_action)
+                ep_rewards.append(new_reward)
+                if render:
+                    self.env_eval.render()
+            total_rewards.append(np.sum(np.array(ep_rewards)))
 
-        return np.mean(np.array(avg_rewards))
+        return np.mean(np.array(total_rewards))
 
 
     def get_model_loss(self, mode, model, dataset):
@@ -324,9 +321,9 @@ class Controller:
 
 
     def train(self, iterations=10, batch_size=64, val_ratio=.1,
-                exp_episodes=10, exp_timesteps=100, exp_gamma_discount=0.9,
+                exp_timesteps=100, exp_gamma_discount=0.9,
                 val_epochs=50, pol_epochs=100,
-                eval_episodes=25, eval_timesteps=200, render_step=2, pickle_name='v0'):
+                eval_episodes=25, render_step=2, pickle_name='v0'):
 
         best_reward = None
         iters_no_increase = 0
@@ -339,7 +336,7 @@ class Controller:
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
-                self.explore(exp_episodes, exp_timesteps, exp_gamma_discount)
+                self.explore(exp_timesteps, exp_gamma_discount)
 
             init_states = self.get_init_state_history()
             self.init_states_tensor = Tensor(init_states)
@@ -391,30 +388,27 @@ class Controller:
 
             # Evaluation
             render = render_step != 0 and (reps_i + 1) % render_step == 0
-            avg_reward = self.evaluate(episodes=eval_episodes, max_timesteps=eval_timesteps, render=render)
+            avg_reward = self.evaluate(episodes=eval_episodes, render=render)
             self.results_dict['rewards'].append(avg_reward)
             if self.verbose:
-                print("[eval] average reward:", avg_reward)
+                print("[eval] average cumulative reward:", avg_reward)
 
             if (best_reward is None) or (avg_reward > best_reward):
                 iters_no_increase = 0
                 best_reward = avg_reward
-                pickle_path = 'results/'+self.env_name +'_'+ pickle_name + '.pickle'
-                with open(pickle_path, 'wb') as handle:
-                    pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            if (best_reward is None) or (avg_reward > best_reward):
-                iters_no_increase = 0
-                best_reward = avg_reward
-                self.policy_model.save('../run/' + self.env_name + '.pth')
-
-                if self.verbose:
-                    print('[eval] saved best performing controller to "%s"' % (pickle_path))
+                self.value_model.save('results/' + self.env_name + '_' + pickle_name + '_value_best.pth')
+                self.policy_model.save('results/' + self.env_name + '_' + pickle_name + '_policy_best.pth')
+                print("[eval] saved best value and policy model")
             else:
                 iters_no_increase += 1
                 if iters_no_increase > 50:
                     if self.verbose:
                         print('[eval] no improvement in last 50 iterations')
                     break
+
+            pickle_path = 'results/'+self.env_name + '_' + pickle_name + '_results' + '.pickle'
+            with open(pickle_path, 'wb') as handle:
+                pickle.dump(self.results_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
             if self.verbose: print()
 
