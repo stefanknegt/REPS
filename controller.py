@@ -324,10 +324,13 @@ class Controller:
                 val_epochs=50, pol_epochs=100,
                 eval_episodes=25, render_step=2, pickle_name='v0'):
 
+        # save number of observations per iterations
+        self.results_dict['timesteps_iteration'] = exp_timesteps * exp_episodes
         # initial reward calculation
         avg_reward = self.evaluate(episodes=eval_episodes, render=False)
         self.results_dict['rewards'].append(avg_reward)
         best_reward = avg_reward
+
         iters_no_increase = 0
 
         for reps_i in range(iterations):
