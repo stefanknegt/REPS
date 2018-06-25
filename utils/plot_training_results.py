@@ -7,7 +7,6 @@ def load_pickled_data(filename):
     with open(filename, 'rb') as handle:
         data = pickle.load(handle)
     return data
-
 def plot_results(x1,y,title,xlabel,ylabel,names,y2=None,y3=None,y4=None,label_fontsize=14):
     if y2 == None:
         line = plt.plot(x,y)
@@ -54,10 +53,61 @@ def plot_results(x1,y,title,xlabel,ylabel,names,y2=None,y3=None,y4=None,label_fo
         plt.legend(names)
         plt.show()
 
-data = load_pickled_data('../run/results/Pendulum-v0_v0.pickle')
-x = range(1,len(data['rewards'])+1)
-y = data['rewards']
-y2 = data['eta']
-y3 = data['value_loss']
-y4 = data['policy_loss']
-plot_results(x,y,title='Average reward during training for Pendulum task',xlabel='Iteration',ylabel='Reward',names=['Reward','Eta','Value loss', 'Policy loss'],y2=y2,y3=y3,y4=y4)
+def plot_fill_between(x,y,xlabel,ylabel,names):
+    y_final = []
+    y_max = []
+    y_min = []
+    y_std = []
+    for i in range(0,len(y[1])):
+        y_final.append(np.mean(y[:,i]))
+        y_max.append(np.max(y[:,i]))
+        y_min.append(np.min(y[:,i]))
+        y_std.append(np.std(y[:,i]))
+    plt.xlabel(xlabel,fontsize=14)
+    plt.ylabel(ylabel,fontsize=14)
+    plt.xticks(np.arange(min(x), max(x)+1, 50000))
+    plt.xlim(0,max(x))
+
+    plt.plot(x, y_final, color='#1B2ACC',alpha=0.5,linewidth=2)
+
+    plt.fill_between(x, np.subtract(y_final,y_std), np.add(y_final,y_std), alpha=0.2, edgecolor='#1B2ACC', facecolor='#089FFF')
+    plt.savefig('Test2.pdf', dpi=None, facecolor='w', edgecolor='w',
+        orientation='portrait', papertype=None, format='pdf',
+        transparent=False, bbox_inches='tight', pad_inches=0.1,
+        frameon=None)
+
+data1 = load_pickled_data('../results/Pendulum-v0_Final1_results.pickle')
+data2 = load_pickled_data('../run/results/Pendulum-v0_Final2_results.pickle')
+data3 = load_pickled_data('../run/results/Pendulum-v0_Final3_results.pickle')
+data4 = load_pickled_data('../run/results/Pendulum-v0_Final4_results.pickle')
+data5 = load_pickled_data('../run/results/Pendulum-v0_Final6_results.pickle')
+timesteps = data1['timesteps_iteration']
+x = range(0,(len(data1['rewards'])+1)*timesteps,timesteps)
+
+if True:
+    y_init = [-1256.0]
+    y1 = y_init + (data1['rewards'])
+    max_y1 = max(y1)
+    print(max_y1)
+    y2 = y_init + (data2['rewards'])
+    max_y2 = max(y2)
+    print(max_y2)
+    y3 = y_init + (data3['rewards'])
+    max_y3 = max(y3)
+    print(max_y3)
+    y4 = y_init + (data4['rewards'])
+    max_y4 = max(y4)
+    print(max_y4)
+    y5 = y_init + (data5['rewards'])
+    max_y5 = max(y5)
+    print(max_y5)
+else:
+    y1 = data['rewards']
+    y2 = data['rewards']
+    y3 = data['rewards']
+    y4 = data['rewards']
+    y5 = data['rewards']
+y = np.stack((y1,y2,y3,y4,y5))
+
+print((max_y1+max_y2+max_y3+max_y4+max_y5)/5)
+plot_fill_between(x,y,'Timesteps','Reward',[''])
