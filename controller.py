@@ -100,8 +100,7 @@ class Controller:
             cum_sum += obs_dicts[obs_idx]['reward'] * (gamma ** disc_pow)
             obs_dicts[obs_idx]['cum_sum'] = cum_sum
 
-
-    def explore(self, timesteps, gamma_discount):
+    def explore(self, episodes, max_timesteps, gamma_discount):
         # initialize exploration
         new_observations = []
         new_init_states = []
@@ -109,9 +108,9 @@ class Controller:
         episode_done = False
         cur_state = self.env_sample.reset()
 
-        for t in range(timesteps):
+        for t in range(episodes * max_timesteps):
             # reset environment
-            if episode_done:
+            if (t % max_timesteps == 0) or episode_done:
                 # calculate cumulative sum
                 self.set_cumulative_sum(new_observations, episode_t, gamma_discount)
                 episode_t = 0
@@ -124,11 +123,11 @@ class Controller:
 
             # save new observation
             new_observations.append({
-                    'prev_state': cur_state,
-                    'action': cur_action,
-                    'reward': new_reward,
-                    'new_state': new_state,
-                    'cum_sum': 0.})
+                'prev_state': cur_state,
+                'action': cur_action,
+                'reward': new_reward,
+                'new_state': new_state,
+                'cum_sum': 0.})
             # iterate
             episode_t += 1
             cur_state = new_state
@@ -144,7 +143,7 @@ class Controller:
         self.init_states.append(new_init_states)
 
         if self.verbose:
-            print("[explore] added %d observations (%d episodes)" % (len(new_observations), len(new_init_states)))
+            print("[explore] added %d observations " % (len(new_observations)))
         return new_observations
 
 
@@ -320,7 +319,7 @@ class Controller:
         return kl, valid_kl
 
 
-    def train(self, iterations=10, batch_size=64, val_ratio=.1,
+    def train(self, iterations=10, batch_size=64, val_ratio=.1, exp_episodes=25,
                 exp_timesteps=100, exp_gamma_discount=0.9,
                 val_epochs=50, pol_epochs=100,
                 eval_episodes=25, render_step=2, pickle_name='v0'):
@@ -336,7 +335,7 @@ class Controller:
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
-                self.explore(exp_timesteps, exp_gamma_discount)
+                self.explore(exp_episodes, exp_timesteps, exp_gamma_discount)
 
             init_states = self.get_init_state_history()
             self.init_states_tensor = Tensor(init_states)
