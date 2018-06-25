@@ -324,7 +324,10 @@ class Controller:
                 val_epochs=50, pol_epochs=100,
                 eval_episodes=25, render_step=2, pickle_name='v0'):
 
-        best_reward = None
+        # initial reward calculation
+        avg_reward = self.evaluate(episodes=eval_episodes, render=False)
+        self.results_dict['rewards'].append(avg_reward)
+        best_reward = avg_reward
         iters_no_increase = 0
 
         for reps_i in range(iterations):
@@ -332,6 +335,7 @@ class Controller:
 
             if self.verbose:
                 print("[REPS] iteration", reps_i+1, "/", iterations)
+                if reps_i == 0: print("[eval] initial average cumulative reward:", best_reward)
 
             # Gather and prepare data (minimum of history_depth explorations)
             for _ in range(max(1, self.history_depth - len(self.observations))):
@@ -392,7 +396,7 @@ class Controller:
             if self.verbose:
                 print("[eval] average cumulative reward:", avg_reward)
 
-            if (best_reward is None) or (avg_reward > best_reward):
+            if avg_reward > best_reward:
                 iters_no_increase = 0
                 best_reward = avg_reward
                 self.value_model.save('results/' + self.env_name + '_' + pickle_name + '_value_best.pth')
