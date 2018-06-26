@@ -81,34 +81,40 @@ data2 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.2_results.p
 data3 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.3_results.pickle')
 data4 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.4_results.pickle')
 data5 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.5_results.pickle')
-"""
 
 data1 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_1_results.pickle')
 data2 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_2_results.pickle')
 data3 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_3_results.pickle')
 data4 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_4_results.pickle')
 data5 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_5_results.pickle')
+"""
 
-Pendulum = False
+Pendulum = True
+
+data1 = load_pickled_data('../results/results/Pendulum-v0_Final1_results.pickle')
+data2 = load_pickled_data('../results/results/Pendulum-v0_Final2_results.pickle')
+data3 = load_pickled_data('../results/results/Pendulum-v0_Final3_results.pickle')
+data4 = load_pickled_data('../results/results/Pendulum-v0_Final4_results.pickle')
+data5 = load_pickled_data('../results/results/Pendulum-v0_Final6_results.pickle')
 
 timesteps = data1['timesteps_iteration']
 
 if Pendulum == True:
     x = range(0,(len(data1['rewards'])+1)*timesteps,timesteps)
-    y_init = [-1256.0]
-    y1 = y_init + (data1['rewards'])
+    y_init = [[-1256.0],[-1149.57],[-1240.35],[-1353.94],[-1161.96]]
+    y1 = y_init[0] + (data1['rewards'])
     max_y1 = max(y1)
     print(max_y1)
-    y2 = y_init + (data2['rewards'])
+    y2 = y_init[1] + (data2['rewards'])
     max_y2 = max(y2)
     print(max_y2)
-    y3 = y_init + (data3['rewards'])
+    y3 = y_init[2] + (data3['rewards'])
     max_y3 = max(y3)
     print(max_y3)
-    y4 = y_init + (data4['rewards'])
+    y4 = y_init[3] + (data4['rewards'])
     max_y4 = max(y4)
     print(max_y4)
-    y5 = y_init + (data5['rewards'])
+    y5 = y_init[4] + (data5['rewards'])
     max_y5 = max(y5)
     print(max_y5)
 else:
