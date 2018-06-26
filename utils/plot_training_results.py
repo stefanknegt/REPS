@@ -91,11 +91,11 @@ data5 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_5_results
 
 Pendulum = True
 
-data1 = load_pickled_data('../results/results/Pendulum-v0_Final1_results.pickle')
-data2 = load_pickled_data('../results/results/Pendulum-v0_Final2_results.pickle')
-data3 = load_pickled_data('../results/results/Pendulum-v0_Final3_results.pickle')
-data4 = load_pickled_data('../results/results/Pendulum-v0_Final4_results.pickle')
-data5 = load_pickled_data('../results/results/Pendulum-v0_Final5_results.pickle')
+data1 = load_pickled_data('../results/paperResults/Pendulum-v0_Final1_results.pickle')
+data2 = load_pickled_data('../results/paperResults/Pendulum-v0_Final2_results.pickle')
+data3 = load_pickled_data('../results/paperResults/Pendulum-v0_Final3_results.pickle')
+data4 = load_pickled_data('../results/paperResults/Pendulum-v0_Final4_results.pickle')
+data5 = load_pickled_data('../results/paperResults/Pendulum-v0_Final5_results.pickle')
 
 timesteps = data1['timesteps_iteration']
 
