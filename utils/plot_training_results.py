@@ -65,7 +65,7 @@ def plot_fill_between(x,y,xlabel,ylabel,names):
         y_std.append(np.std(y[:,i]))
     plt.xlabel(xlabel,fontsize=14)
     plt.ylabel(ylabel,fontsize=14)
-    plt.xticks(np.arange(min(x), max(x)+1, 50000))
+    plt.xticks(np.arange(min(x), max(x)+1, 200000))
     plt.xlim(0,max(x))
 
     plt.plot(x, y_final, color='#1B2ACC',alpha=0.5,linewidth=2)
@@ -75,16 +75,26 @@ def plot_fill_between(x,y,xlabel,ylabel,names):
         orientation='portrait', papertype=None, format='pdf',
         transparent=False, bbox_inches='tight', pad_inches=0.1,
         frameon=None)
+"""
+data1 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.1_results.pickle')
+data2 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.2_results.pickle')
+data3 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.3_results.pickle')
+data4 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.4_results.pickle')
+data5 = load_pickled_data('../results/paperResults/HalfCheetah-v2_v0.5_results.pickle')
+"""
 
-data1 = load_pickled_data('../results/Pendulum-v0_Final1_results.pickle')
-data2 = load_pickled_data('../run/results/Pendulum-v0_Final2_results.pickle')
-data3 = load_pickled_data('../run/results/Pendulum-v0_Final3_results.pickle')
-data4 = load_pickled_data('../run/results/Pendulum-v0_Final4_results.pickle')
-data5 = load_pickled_data('../run/results/Pendulum-v0_Final6_results.pickle')
+data1 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_1_results.pickle')
+data2 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_2_results.pickle')
+data3 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_3_results.pickle')
+data4 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_4_results.pickle')
+data5 = load_pickled_data('../results/paperResults/Swimmer-v2_eval_run_5_results.pickle')
+
+Pendulum = False
+
 timesteps = data1['timesteps_iteration']
-x = range(0,(len(data1['rewards'])+1)*timesteps,timesteps)
 
-if True:
+if Pendulum == True:
+    x = range(0,(len(data1['rewards'])+1)*timesteps,timesteps)
     y_init = [-1256.0]
     y1 = y_init + (data1['rewards'])
     max_y1 = max(y1)
@@ -102,12 +112,22 @@ if True:
     max_y5 = max(y5)
     print(max_y5)
 else:
-    y1 = data['rewards']
-    y2 = data['rewards']
-    y3 = data['rewards']
-    y4 = data['rewards']
-    y5 = data['rewards']
-y = np.stack((y1,y2,y3,y4,y5))
+    x = range(0,(len(data1['rewards']))*timesteps,timesteps)
+    y1 = data1['rewards']
+    y2 = data2['rewards']
+    y3 = data3['rewards']
+    y4 = data4['rewards']
+    y5 = data5['rewards']
+    max_y1 = np.max(y1)
+    max_y2 = np.max(y2)
+    max_y3 = np.max(y3)
+    max_y4 = np.max(y4)
+    max_y5 = np.max(y5)
 
+
+y = np.stack((y1,y2,y3,y4,y5))
+print(y)
 print((max_y1+max_y2+max_y3+max_y4+max_y5)/5)
+print((max_y1,max_y2,max_y3,max_y4,max_y5))
+
 plot_fill_between(x,y,'Timesteps','Reward',[''])
